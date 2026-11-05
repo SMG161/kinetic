@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.import_linter_cache/
+
+# Local config and secrets (copy .env.example instead)
+.env
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
