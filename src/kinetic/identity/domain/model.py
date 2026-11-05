@@ -91,7 +91,7 @@ class Session:
         session = cls(
             id=uuid4(),
             person_id=person_id,
-            refresh_token_hash=hash_token(token),
+            refresh_token_hash=hash_refresh_token(token),
             valid=TimeRange(at, at + SESSION_LIFETIME),
         )
         return session, token
@@ -102,7 +102,7 @@ class Session:
     def rotate(self) -> tuple["Session", str]:
         """Swap in a new refresh token, so each one works only once."""
         token = _new_refresh_token()
-        return replace(self, refresh_token_hash=hash_token(token)), token
+        return replace(self, refresh_token_hash=hash_refresh_token(token)), token
 
     def access_claims(self, at: datetime) -> AccessClaims:
         return AccessClaims(person_id=self.person_id, session_id=self.id, expires_at=at + ACCESS_TOKEN_LIFETIME)
@@ -112,6 +112,6 @@ def _new_refresh_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-def hash_token(token: str) -> str:
+def hash_refresh_token(token: str) -> str:
     """SHA-256 is enough here: refresh tokens are 256 random bits, unlike passwords."""
     return hashlib.sha256(token.encode()).hexdigest()

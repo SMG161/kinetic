@@ -19,8 +19,9 @@ The design is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Read it before ch
 
 ## Commands
 
-- `uv sync` to install, `uv run pytest` to test.
+- `uv sync` to install, `uv run python -m pytest` to test (scenario tests need Postgres running).
 - `cp .env.example .env`, then `docker compose up -d --wait` (Postgres on host port 5433).
-- `uv run alembic upgrade head` to migrate; migrations are hand-written in `migrations/versions/`.
-- `uv run uvicorn kinetic.main:app --reload` to serve; `GET /health` checks the database.
+- `uv run python -m alembic upgrade head` to migrate; migrations are hand-written in `migrations/versions/`.
+- `uv run python -m uvicorn kinetic.main:app --reload` to serve; `GET /health` checks the database.
 - No `make` on the dev machine: use the commands above.
+- Use `uv run python -m <tool>`: on this Windows machine `uv run <tool>` fails with "uv trampoline failed to canonicalize script path".

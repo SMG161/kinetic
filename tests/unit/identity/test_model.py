@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from kinetic.identity.domain.errors import InvalidEmail, WeakPassword
-from kinetic.identity.domain.model import SESSION_LIFETIME, Account, Email, Person, Session, hash_token
+from kinetic.identity.domain.model import SESSION_LIFETIME, Account, Email, Person, Session, hash_refresh_token
 from kinetic.identity.domain.tokens import ACCESS_TOKEN_LIFETIME
 from kinetic.shared_kernel import new_person_id
 
@@ -56,7 +56,7 @@ class TestAccount:
 class TestSession:
     def test_stores_only_the_hash_of_the_refresh_token(self):
         session, token = Session.start(new_person_id(), T0)
-        assert session.refresh_token_hash == hash_token(token)
+        assert session.refresh_token_hash == hash_refresh_token(token)
         assert token not in session.refresh_token_hash
 
     def test_refresh_tokens_are_unique(self):
@@ -73,7 +73,7 @@ class TestSession:
         session, old_token = Session.start(new_person_id(), T0)
         rotated, new_token = session.rotate()
         assert new_token != old_token
-        assert rotated.refresh_token_hash == hash_token(new_token)
+        assert rotated.refresh_token_hash == hash_refresh_token(new_token)
         assert (rotated.id, rotated.person_id, rotated.valid) == (session.id, session.person_id, session.valid)
 
     def test_access_claims_carry_identity_only_and_expire_quickly(self):

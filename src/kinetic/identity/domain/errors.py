@@ -20,3 +20,7 @@ class InvalidCredentials(IdentityError):
 
 class InvalidAccessToken(IdentityError):
     pass
+
+
+class InvalidRefreshToken(IdentityError):
+    pass
