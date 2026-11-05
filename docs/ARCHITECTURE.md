@@ -23,7 +23,7 @@ We build four bounded contexts: `identity`, `directory`, `care_team` (the core) 
 ### Ubiquitous language per context
 
 - **identity** (who someone is): Person, Account, Credential, Session, Invitation. Hands everyone a `person_id` and nothing else.
-- **directory** (what someone is in the business): Organization, StaffMembership (owner, admin, front desk), Provider (disciplines, credentials, affiliations; may be independent), Client. One person can hold several personas, all pointing at one `person_id`.
+- **directory** (what someone is in the business): Organization, StaffMembership (owner, admin, front desk, practitioner), Provider (qualified disciplines; independent unless a practitioner somewhere), Client, Client Relationship (an org serving a client), Practice Lead (the org's accountable person for that client). One person can hold several personas, all pointing at one `person_id`.
 - **care_team** (the core): Care Team, Membership, Engagement, Designation (Booking Contact, Clinical Lead), Handoff, Coverage, Team Event. Owns the `AccessPolicy`.
 - **records** (thin): Clinical Record, Record Category, Author, Org Context. Asks `care_team` for every access decision.
 
@@ -32,11 +32,12 @@ The same word means different things per context, which is the reason the contex
 - **Provider** in `directory` is a professional with credentials and affiliations. In `care_team` the same person is only a **Member** with a discipline and an engagement level.
 - **Client** in `directory` is a profile record. In `care_team` it is the subject the team exists for. In `identity` it is just a Person.
 - **Organization** in `directory` is an entity with staff. In `care_team` it is only an **org context** stamped on a membership or record.
+- **Lead** means three different things. **Practice Lead** (`directory`) is who at an org is accountable for a client, and may be non-clinical. **Booking Contact** and **Clinical Lead** (`care_team`) are designations across the whole team, always held by active members.
 
 ### Context map
 
 - **identity → everyone:** upstream; publishes `person_id`, which others accept as-is.
-- **directory → care_team:** customer/supplier. `care_team` reads disciplines and affiliations through its own `ProviderDirectory` port, an anti-corruption layer.
+- **directory → care_team:** customer/supplier. `care_team` reads disciplines, practitioner memberships, client relationships and practice leads through its own `ProviderDirectory` port, an anti-corruption layer.
 - **care_team → records:** records conforms; it calls the `CareAccess` port and accepts the answer.
 - **care_team → scheduling/billing (stubs):** in-process domain events such as `BookingContactHandedOff`; billing asks "can bill?".
 
@@ -71,6 +72,7 @@ Authentication and identity stay in one context, `identity`, modelled as two agg
 
 - **Authentication** (are you who you say you are?) lives in `identity`. It covers credentials, login and sessions, and ends by producing a `person_id`.
 - **Authorization** (what may you do?) depends on team memberships, engagement, coverage windows and org staff roles. It lives in the `care_team` `AccessPolicy`, with `directory` supplying org-staff facts through a port.
+- The one exception is managing an org itself (who may add staff or client relationships). That is a rule about directory's own data, so it is an invariant of the `Organization` aggregate. Routing it through `AccessPolicy` would make `directory` depend on `care_team`, which already depends on `directory`: a cycle.
 
 ### Person is not Account
 
@@ -95,12 +97,50 @@ We would split them if authentication moved to a vendor (Auth0, Cognito, an org'
   - Considered and replaced: opaque session tokens checked on every request. They give instant revocation, but JWT is the industry-standard bearer format and is what an external identity provider would issue, so adopting it now keeps a later move to a vendor cheap.
 - The token resolves only to `person_id` and a session id. Personas and permissions are looked up on the server for every request. Roles in a token go stale; a covering provider would keep access after the coverage window ended. That is why the JWT carries no roles.
 - `GET /me` returns the person and all their personas (client, provider, staff memberships).
+- `POST /auth/signup` and `GET /me` combine identity with directory data (a Client profile, the personas). Identity is upstream and never imports directory, so these two routes live in `directory`'s API and call identity's public module. Whatever combines two contexts lives in the downstream one.
 
 ### Onboarding and invitations
 
 - **Client self-signup** creates a Person, an Account and a Client profile.
-- **Invitations** use a random token stored hashed, with a type (org invites staff or provider; provider or org invites client, optionally into a care team). Accepting either creates an account or links to an existing person by email.
+- **Invitations** use a random token stored hashed, with a type (org invites staff or a practitioner; provider or org invites client, optionally into a care team). Accepting either creates an account or links to an existing person by email. An org inviting a client creates the Client Relationship on acceptance.
 - Email sending is stubbed: the token is returned in the API response and the README says so.
+
+## The practice directory
+
+`directory` knows what each person is in the business, and which organizations serve which clients.
+
+### Model
+
+| Element | Kind | Holds |
+|---|---|---|
+| `Organization` | Aggregate root | name, staff memberships |
+| `StaffMembership` | Entity | person_id, role (`OWNER`, `ADMIN`, `FRONT_DESK`, `PRACTITIONER`), disciplines practised here (practitioners only) |
+| `Provider` | Aggregate root | person_id, qualified disciplines |
+| `Client` | Aggregate root | person_id |
+| `ClientRelationship` | Aggregate root | org_id, client_id, `TimeRange`, practice lead assignments |
+| `PracticeLeadAssignment` | Entity | staff person_id, `TimeRange`, reason |
+| `Discipline` | Value object | `TRAINER`, `PHYSIO`, `PHYSICIAN`, `MASSAGE`, `NUTRITION` |
+
+A provider is **independent** if they hold no practitioner membership. A clinic owner who also treats holds two staff memberships at the same org: `OWNER` and `PRACTITIONER`.
+
+### Invariants
+
+1. Whoever creates an organization becomes its `OWNER`. Only an owner or admin may add staff or client relationships; staff are added as admin, front desk or practitioner, never as a second owner.
+2. A person holds each role at an org at most once.
+3. A practitioner's disciplines at an org are a subset of their provider qualifications.
+4. At most one active client relationship per (org, client).
+5. While a relationship is active it has exactly one practice lead, who is staff of that org in any role (non-clinical is allowed). Changing the lead closes one assignment and opens the next at the same instant, as with team designations.
+6. A staff member cannot leave an org while they are a practice lead there, unless the same command hands the lead off.
+
+### Why client relationships live here, not in the care team
+
+Considered: a `PracticeTeam` entity inside `CareTeam`, one per org, holding the practice lead. Rejected because:
+
+- The brief's client "belongs to a gym" even when no gym provider treats her. That is a business relationship, not care, and an empty practice team would be needed to say it.
+- An independent provider would need a practice team of one.
+- A non-clinical practice lead is the org running its business. Putting it in the core is the gym-admin leak the rejected boundaries warn about.
+
+What we gave up, and how it is recovered: a practice team could be discharged in one step. Here `care_team` has a **discharge organization** command that ends that org's memberships and the client relationship in the same database transaction (`care_team` may call directory's public module; both run in one request transaction).
 
 ## The care team (core)
 
@@ -119,7 +159,7 @@ The team is **of the client**: each client has exactly one `CareTeam`, owned by 
 | Element | Kind | Holds |
 |---|---|---|
 | `CareTeam` | Aggregate root | client_id, version, the entities below |
-| `Membership` | Entity | provider_id, org_context_id or null, engagement, reason, `TimeRange` |
+| `Membership` | Entity | provider_id, discipline, org_context_id or null, engagement, reason, `TimeRange` |
 | `DesignationAssignment` | Entity | designation, membership_id, `TimeRange` |
 | `Coverage` | Entity | covered_membership_id, covering_provider_id, `TimeRange`, reason |
 | `TeamEvent` | Recorded with every command | actor, reason, at, event type |
@@ -141,6 +181,7 @@ Each invariant gets a unit test.
 7. A membership holding a designation cannot be ended or demoted unless the same command hands the designation off.
 8. Coverage falls inside the covered membership's period, the covering provider is not the covered provider, and one membership has no overlapping coverages.
 9. Every command records a `TeamEvent` with actor, reason and time.
+10. A membership's org context is an org where the provider is a practitioner in that discipline and which has an active client relationship with the client; with no org context, the provider must be qualified in the discipline. Checked through the `ProviderDirectory` port when the member is added.
 
 Invariants 2 and 4 are also enforced in Postgres with exclusion constraints (needs `btree_gist`):
 
@@ -152,15 +193,19 @@ A `version` column on `care_team` gives optimistic locking, so two concurrent ha
 
 ### Commands and who may issue them
 
-Add member, change engagement, end membership, hand off a designation, schedule coverage, end coverage. The client can always issue them; the current booking contact and clinical lead hold `manage_team`. Covering providers and org admins do not (an open question).
+Add member, change engagement, end membership, hand off a designation, schedule coverage, end coverage, discharge an organization. The client can always issue them; the current booking contact and clinical lead hold `manage_team`. An org's practice lead for the client may add and end members in their own org's context and discharge their own org, nothing else. Covering providers and org admins do not (an open question).
+
+Discharging an organization closes every membership in that org's context at time t and ends the client relationship in the same transaction. If one of those members holds a designation, the same command must hand it off (invariant 7).
 
 ### Coverage semantics
 
 During the window, the covering provider gets the covered member's capabilities except `manage_team` and designations. The designation stays with the original holder; an "effective booking contact" query resolves to the cover during the window, so the answer is unambiguous at every instant. Access ends because the policy evaluates the window at request time. No background job revokes anything.
 
+The covering provider need not belong to the covered member's org (an independent physio's colleague usually does not). While covering they act under the covered membership's org context, so they see that org's slice and nothing else.
+
 ### History
 
-Closed periods plus `TeamEvent` rows keep who was on the team, in what role, when and why. `GET /care-teams/{id}?as_of=<timestamp>` reconstructs the team at any instant. **Rejected, event sourcing:** too costly for three days; current-state tables, append-only periods and an event table give "keep, don't overwrite" at a fraction of the cost.
+Closed periods plus `TeamEvent` rows keep who was on the team, in what role, when and why. `GET /care-teams/{id}?as_of=<timestamp>` reconstructs the team at any instant, including each org's practice lead at that instant (read through the `ProviderDirectory` port, since lead assignments keep their own periods in `directory`). **Rejected, event sourcing:** too costly for three days; current-state tables, append-only periods and an event table give "keep, don't overwrite" at a fraction of the cost.
 
 ### How each scenario is expressed
 
@@ -171,8 +216,19 @@ Closed periods plus `TeamEvent` rows keep who was on the team, in what role, whe
 | Two-week coverage, then handback | A `Coverage` with a window; access is computed at request time; handback ends the coverage |
 | Physio steps back after rehab | `ACTIVE` period closes, `CONSULTING` period opens with a reason; history intact |
 | Physician sees, massage therapist doesn't | Discipline decides record categories (Access policy section) |
-| Gym client with an independent physio | `org_context_id` on memberships and records; org admins see only their org's slice |
-| History is kept | Closed periods, `TeamEvent`s and the `as_of` query |
+| Gym client with an independent physio | A `ClientRelationship` says the gym serves her, even with no gym provider on the team; the physio's membership has no org context; org admins and practice leads see only their org's slice |
+| History is kept | Closed periods, `TeamEvent`s, practice lead assignments and the `as_of` query |
+
+### Extra cases found
+
+| Case | Expression in the model |
+|---|---|
+| Who at the gym is accountable for this client? | The relationship's practice lead, possibly non-clinical |
+| The practice lead goes on leave | The org hands the lead to another staff member; history keeps both periods |
+| A physio leaves the gym, goes independent and keeps the client | Her gym-context membership closes and a new one opens with no org context; history intact |
+| The gym stops serving the client | Discharge organization: its memberships and the relationship end at the same instant, designations handed off in the same command |
+| An independent physio's colleague covers | Coverage needs no shared org; the cover acts under the covered membership's org context |
+| A clinic owner also treats the client | Two staff memberships at one org (`OWNER`, `PRACTITIONER`); only the practitioner one lets them join a care team on that org's behalf |
 
 ## Access policy
 
@@ -208,6 +264,8 @@ This separates "see" from "act" naturally. The physio stepping back after rehab 
 
 - Memberships and records carry an `org_context_id` (null for an independent provider).
 - An org admin sees team membership and records only within their own org's context, never the independent physio's notes.
+- A practice lead sees their org's slice of the team's membership and history. Being a lead grants no clinical record access; a lead who also treats the client gets that through their own membership.
+- The discipline that decides record categories is the membership's, i.e. what the provider practises for this client, not every discipline they are qualified in.
 - The client always sees their own team and its history.
 
 ### Principals
@@ -224,7 +282,7 @@ The domain is pure Python; SQLAlchemy lives only in each context's infrastructur
 - **Alembic** for migrations, including the `btree_gist` extension and exclusion constraints.
 - **One Postgres schema per context** (`identity`, `directory`, `care_team`, `records`).
 - **Postgres-specific features used on purpose:** `tstzrange`, exclusion constraints and a `version` column for optimistic locking.
-- **Tooling:** uv for packages, docker compose for Postgres, `make` targets for `up`, `migrate`, `seed`, `demo`, `test`.
+- **Tooling:** uv for packages, docker compose for Postgres, plain commands (listed in the README) for migrate, seed, demo and test.
 
 ### Layout
 
@@ -253,6 +311,8 @@ scripts/
 - `POST /auth/signup`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /me`
 - `POST /invitations`, `POST /invitations/{token}/accept`
 - `POST /orgs`, `POST /orgs/{id}/staff`, `POST /providers`
+- `POST /orgs/{id}/clients` (start a client relationship with its practice lead), `POST /orgs/{id}/clients/{cid}/practice-lead` (hand the lead off)
+- `POST /care-teams/{id}/orgs/{org_id}/discharge`
 - `GET /care-teams/{id}` (filtered by viewer, optional `as_of`), `GET /care-teams/{id}/history`
 - `POST /care-teams/{id}/members`, `POST .../members/{mid}/engagement`, `POST .../members/{mid}/end`
 - `POST /care-teams/{id}/handoffs`, `POST /care-teams/{id}/coverages`, `POST .../coverages/{cid}/end`
@@ -272,17 +332,17 @@ Three days, one commit per step. The care team domain is built and tested before
 
 ### Day 1: foundation
 
-- [ ] Scaffold: docker compose, settings, FastAPI app, Alembic, `/health`
-- [ ] Shared kernel: `TimeRange` and `Clock`, with tests
-- [ ] Identity: signup, login, refresh, logout, `/me` with personas
-- [ ] Directory: orgs, staff memberships, provider profiles, independent providers
+- [x] Scaffold: docker compose, settings, FastAPI app, Alembic, `/health`
+- [x] Shared kernel: `TimeRange` and `Clock`, with tests
+- [x] Identity: signup, login, refresh, logout, `/me` (personas arrive with directory)
+- [ ] Directory: orgs, staff memberships (including practitioners), provider profiles, client profiles, client relationships with practice leads, personas on `/me`
 - [ ] Invitations: hashed token, returned in the response instead of emailed
 
 ### Day 2: the core
 
 - [ ] CareTeam domain model and invariant unit tests, no database
 - [ ] Persistence: exclusion constraints, optimistic locking, repositories
-- [ ] Commands: add member, change engagement, end membership, handoff, coverage
+- [ ] Commands: add member, change engagement, end membership, handoff, coverage, discharge organization
 - [ ] `AccessPolicy` and `/access/explain`
 - [ ] Thin `records` context calling the policy through its port
 
@@ -313,3 +373,11 @@ A strangler migration, no big-bang cutover:
 - Guardians and proxies, and break-the-glass emergency access.
 - Email sending, rate limiting, refresh-token reuse detection (revoking the whole session when an old refresh token is replayed).
 - A real event bus; events are dispatched in-process.
+- Credential verification: anyone can register as a provider with any discipline.
+
+### Open questions (where the brief was silent)
+
+- Should a practice lead have to be clinical, or is a non-clinical coordinator enough? We allow non-clinical.
+- May an org admin or a covering provider manage the team? We say no.
+- When an org stops serving a client, should its providers' records stay visible to the rest of the team?
+- Who verifies a provider's credentials before they can join a care team?
