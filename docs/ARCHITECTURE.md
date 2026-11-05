@@ -182,6 +182,7 @@ Each invariant gets a unit test.
 8. Coverage falls inside the covered membership's period, the covering provider is not the covered provider, and one membership has no overlapping coverages.
 9. Every command records a `TeamEvent` with actor, reason and time.
 10. A membership's org context is an org where the provider is a practitioner in that discipline and which has an active client relationship with the client; with no org context, the provider must be qualified in the discipline. Checked through the `ProviderDirectory` port when the member is added.
+11. A client is never a member of, nor a cover on, their own care team. Self-treatment would make the subject of the records also their practitioner, so "who may see and act" turns circular.
 
 Invariants 2 and 4 are also enforced in Postgres with exclusion constraints (needs `btree_gist`):
 
@@ -229,6 +230,8 @@ Closed periods plus `TeamEvent` rows keep who was on the team, in what role, whe
 | The gym stops serving the client | Discharge organization: its memberships and the relationship end at the same instant, designations handed off in the same command |
 | An independent physio's colleague covers | Coverage needs no shared org; the cover acts under the covered membership's org context |
 | A clinic owner also treats the client | Two staff memberships at one org (`OWNER`, `PRACTITIONER`); only the practitioner one lets them join a care team on that org's behalf |
+| A physio who is also a client | One person with a Client and a Provider profile. She may treat others but never join her own team (invariant 11) |
+| A gym trainer who is also a client of the same gym | The gym has a client relationship with her and a practitioner membership for her. Her own records are visible to her as the client, never through her trainer role |
 
 ## Access policy
 
@@ -271,6 +274,8 @@ This separates "see" from "act" naturally. The physio stepping back after rehab 
 ### Principals
 
 The principal is resolved from the session token to `person_id`, then to personas: client profile, provider profile, staff memberships. A person can act as client of their own team and as provider on someone else's. Nothing about who someone is or what they may do comes from the request body.
+
+There is no "switch persona" step. `AccessPolicy` looks at every persona the principal holds and asks which of them relates to the resource: on Maya's own team she is the client; on another client's team she is that team's trainer and only trainer rules apply. The resource decides which relationship counts, never a role the caller picks.
 
 ## Stack, persistence, layout and testing
 
