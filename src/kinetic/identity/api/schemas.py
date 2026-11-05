@@ -2,12 +2,10 @@
 
 from datetime import datetime
 from typing import Literal
-from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from kinetic.identity.application.services import TokenPair
-from kinetic.identity.domain.model import Person
 
 
 # Caps the input to argon2, so a huge password can't be used to burn CPU.
@@ -38,13 +36,3 @@ class TokenResponse(BaseModel):
     @classmethod
     def from_pair(cls, pair: TokenPair) -> "TokenResponse":
         return cls(access_token=pair.access_token, expires_at=pair.access_token_expires_at, refresh_token=pair.refresh_token)
-
-
-class PersonResponse(BaseModel):
-    id: UUID
-    full_name: str
-    email: str
-
-    @classmethod
-    def from_person(cls, person: Person) -> "PersonResponse":
-        return cls(id=person.id, full_name=person.full_name, email=person.email.value)

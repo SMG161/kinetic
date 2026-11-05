@@ -1,12 +1,16 @@
-"""Identity HTTP endpoints, and the mapping from identity errors to HTTP status codes."""
+"""Identity HTTP endpoints, and the mapping from identity errors to HTTP status codes.
+
+Signup and /me also need directory data (a client profile, personas), so they live
+in directory's API: identity is upstream and never imports directory.
+"""
 
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from kinetic.identity.api.dependencies import IdentityServiceDep, current_claims, current_person_id
-from kinetic.identity.api.schemas import LoginRequest, PersonResponse, RefreshRequest, SignupRequest, TokenResponse
+from kinetic.identity.api.dependencies import IdentityServiceDep, current_claims
+from kinetic.identity.api.schemas import LoginRequest, RefreshRequest, TokenResponse
 from kinetic.identity.domain.errors import (
     EmailAlreadyRegistered,
     IdentityError,
@@ -17,14 +21,8 @@ from kinetic.identity.domain.errors import (
     WeakPassword,
 )
 from kinetic.identity.domain.tokens import AccessClaims
-from kinetic.shared_kernel import PersonId
 
 router = APIRouter(tags=["identity"])
-
-
-@router.post("/auth/signup", status_code=201)
-def signup(body: SignupRequest, service: IdentityServiceDep) -> TokenResponse:
-    return TokenResponse.from_pair(service.signup(body.full_name, body.email, body.password))
 
 
 @router.post("/auth/login")
@@ -40,11 +38,6 @@ def refresh(body: RefreshRequest, service: IdentityServiceDep) -> TokenResponse:
 @router.post("/auth/logout", status_code=204)
 def logout(claims: Annotated[AccessClaims, Depends(current_claims)], service: IdentityServiceDep) -> None:
     service.logout(claims)
-
-
-@router.get("/me")
-def me(person_id: Annotated[PersonId, Depends(current_person_id)], service: IdentityServiceDep) -> PersonResponse:
-    return PersonResponse.from_person(service.get_person(person_id))
 
 
 _STATUS_FOR = {

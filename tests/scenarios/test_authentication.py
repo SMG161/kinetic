@@ -6,18 +6,15 @@ from datetime import timedelta
 from fastapi.testclient import TestClient
 
 from kinetic.shared_kernel import FixedClock
+from tests.scenarios.helpers import PASSWORD, bearer
 
-MAYA = {"full_name": "Maya Patel", "email": "maya@example.com", "password": "correct horse battery"}
+MAYA = {"full_name": "Maya Patel", "email": "maya@example.com", "password": PASSWORD}
 
 
 def signup(client: TestClient, **overrides: str) -> dict:
     response = client.post("/auth/signup", json=MAYA | overrides)
     assert response.status_code == 201, response.text
     return response.json()
-
-
-def bearer(tokens: dict) -> dict:
-    return {"Authorization": f"Bearer {tokens['access_token']}"}
 
 
 class TestSignup:

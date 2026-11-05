@@ -23,6 +23,7 @@ from kinetic.shared_kernel import Clock, PersonId
 
 @dataclass(frozen=True)
 class TokenPair:
+    person_id: PersonId
     access_token: str
     access_token_expires_at: datetime
     refresh_token: str
@@ -89,6 +90,13 @@ class IdentityService:
         """Stateless: checks the signature and expiry only, never the database."""
         return self._tokens.read(access_token, self._clock.now())
 
+    def find_person_by_email(self, email: str) -> Person | None:
+        """For other contexts that know someone by email, e.g. an org adding staff."""
+        try:
+            return self._persons.get_by_email(Email.parse(email))
+        except InvalidEmail:
+            return None
+
     def get_person(self, person_id: PersonId) -> Person:
         person = self._persons.get(person_id)
         if person is None:
@@ -102,4 +110,9 @@ class IdentityService:
 
     def _issue(self, session: Session, refresh_token: str, at: datetime) -> TokenPair:
         claims = session.access_claims(at)
-        return TokenPair(self._tokens.issue(claims), claims.expires_at, refresh_token)
+        return TokenPair(
+            person_id=session.person_id,
+            access_token=self._tokens.issue(claims),
+            access_token_expires_at=claims.expires_at,
+            refresh_token=refresh_token,
+        )
