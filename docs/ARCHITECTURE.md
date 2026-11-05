@@ -59,7 +59,7 @@ Boundaries are enforced with one Postgres schema per context (no cross-schema fo
 
 ### Rejected boundaries
 
-- **A separate authorization context:** it would need facts from every context and become a module that knows everything. Access rules come from team facts, so they live in the core.
+- **A separate authorization context:** it would need facts from every context and become a module that knows everything. Access rules come from team facts, so they live in the core. Rejected for now, not forever: see "If authorization grows".
 - **A separate consent context:** probably right in real healthcare; too much for three days. Listed as next.
 - **Merging directory into care_team:** org staff management and team coordination change for different reasons; merging leaks gym-admin concerns into the core.
 - **Episodes of care as a context:** more likely a future concept inside `care_team` that scopes memberships and records to one concern.
@@ -262,6 +262,16 @@ This separates "see" from "act" naturally. The physio stepping back after rehab 
 - Every endpoint calls it through a FastAPI dependency. `records` calls it through the `CareAccess` port. No other code decides access.
 - `at` comes from an injected `Clock`, so tests can move time ("day 15: the cover is denied").
 - Every decision carries a **reason**, such as "denied: coverage ended at 2026-11-17". An `/access/explain` endpoint shows it, which makes a strong walkthrough demo.
+
+### If authorization grows
+
+Scheduling and billing would not need rules of their own: they ask the same policy ("can Pia bill for this session?", "can the front desk book Maya?"). We would extract authorization into its own context only when it outgrows care, for example per-tenant custom roles, consent, or many more resource types. Then:
+
+1. Move `decide()` into an `access` context. Callers do not change, because every one of them already goes through that single call.
+2. Contexts publish facts as events (membership added, engagement changed, coverage scheduled, staff added) and `access` keeps its own copy, so it imports no one. Revocations and time windows are still checked at request time, so stale copies never grant access.
+3. Prefer an off-the-shelf engine (OpenFGA, SpiceDB, Cedar) over a hand-written one: care teams are naturally a graph of relationships.
+4. The access team owns the engine and the audit log; domain teams still own what their rules mean.
+5. Migrate in shadow mode: log every decision where old and new disagree, then switch behind a flag.
 
 ### Cross-organization rules
 
