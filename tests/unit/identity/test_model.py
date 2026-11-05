@@ -4,6 +4,7 @@ import pytest
 
 from kinetic.identity.domain.errors import InvalidEmail, WeakPassword
 from kinetic.identity.domain.model import SESSION_LIFETIME, Account, Email, Person, Session, hash_token
+from kinetic.identity.domain.tokens import ACCESS_TOKEN_LIFETIME
 from kinetic.shared_kernel import new_person_id
 
 T0 = datetime(2026, 11, 3, 9, 0, tzinfo=UTC)
@@ -53,12 +54,12 @@ class TestAccount:
 
 
 class TestSession:
-    def test_stores_only_the_hash_of_the_token(self):
+    def test_stores_only_the_hash_of_the_refresh_token(self):
         session, token = Session.start(new_person_id(), T0)
-        assert session.token_hash == hash_token(token)
-        assert token not in session.token_hash
+        assert session.refresh_token_hash == hash_token(token)
+        assert token not in session.refresh_token_hash
 
-    def test_tokens_are_unique(self):
+    def test_refresh_tokens_are_unique(self):
         person = new_person_id()
         assert Session.start(person, T0)[1] != Session.start(person, T0)[1]
 
@@ -67,3 +68,16 @@ class TestSession:
         assert session.is_valid_at(T0)
         assert session.is_valid_at(T0 + SESSION_LIFETIME - timedelta(seconds=1))
         assert not session.is_valid_at(T0 + SESSION_LIFETIME)
+
+    def test_rotate_replaces_the_refresh_token_and_keeps_the_session(self):
+        session, old_token = Session.start(new_person_id(), T0)
+        rotated, new_token = session.rotate()
+        assert new_token != old_token
+        assert rotated.refresh_token_hash == hash_token(new_token)
+        assert (rotated.id, rotated.person_id, rotated.valid) == (session.id, session.person_id, session.valid)
+
+    def test_access_claims_carry_identity_only_and_expire_quickly(self):
+        session, _ = Session.start(new_person_id(), T0)
+        claims = session.access_claims(T0)
+        assert (claims.person_id, claims.session_id) == (session.person_id, session.id)
+        assert claims.expires_at == T0 + ACCESS_TOKEN_LIFETIME

@@ -41,7 +41,7 @@ def upgrade() -> None:
         "session",
         sa.Column("id", sa.Uuid, primary_key=True),
         sa.Column("person_id", sa.Uuid, sa.ForeignKey("identity.person.id"), nullable=False),
-        sa.Column("token_hash", sa.Text, nullable=False, unique=True),
+        sa.Column("refresh_token_hash", sa.Text, nullable=False, unique=True),
         sa.Column("created_at", TIMESTAMPTZ, nullable=False),
         sa.Column("expires_at", TIMESTAMPTZ, nullable=False),
         sa.CheckConstraint("expires_at > created_at"),

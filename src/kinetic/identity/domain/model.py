@@ -1,22 +1,23 @@
 """Identity model: Person (the human), Account (how they sign in), Session (one sign-in).
 
-Pure Python. Hashing passwords is a port (PasswordHasher) because it needs a
-library; hashing session tokens is plain SHA-256 from the standard library.
+Pure Python. Hashing passwords and signing access tokens are ports because they
+need libraries; hashing refresh tokens is plain SHA-256 from the standard library.
 """
 
 import hashlib
 import re
 import secrets
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
 from kinetic.identity.domain.errors import InvalidEmail, WeakPassword
 from kinetic.identity.domain.ports import PasswordHasher
+from kinetic.identity.domain.tokens import ACCESS_TOKEN_LIFETIME, AccessClaims
 from kinetic.shared_kernel import PersonId, TimeRange, new_person_id
 
 MIN_PASSWORD_LENGTH = 8
-SESSION_LIFETIME = timedelta(days=7)
+SESSION_LIFETIME = timedelta(days=30)
 
 _EMAIL_SHAPE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 
@@ -71,25 +72,26 @@ class Account:
 
 @dataclass(frozen=True)
 class Session:
-    """One signed-in device. Resolves to a person_id and nothing else.
+    """One signed-in device, held by an opaque refresh token.
 
-    Only the token's hash is stored, so a database leak does not leak live tokens.
-    Signing out deletes the row.
+    Only the refresh token's hash is stored, so a database leak does not leak live
+    tokens. Signing out deletes the row: no new access tokens can be issued, and
+    the last one expires within ACCESS_TOKEN_LIFETIME.
     """
 
     id: UUID
     person_id: PersonId
-    token_hash: str
+    refresh_token_hash: str
     valid: TimeRange
 
     @classmethod
     def start(cls, person_id: PersonId, at: datetime) -> tuple["Session", str]:
-        """Return the new session and the plaintext token, which is shown to the caller once."""
-        token = secrets.token_urlsafe(32)
+        """Return the new session and the plaintext refresh token, shown to the caller once."""
+        token = _new_refresh_token()
         session = cls(
             id=uuid4(),
             person_id=person_id,
-            token_hash=hash_token(token),
+            refresh_token_hash=hash_token(token),
             valid=TimeRange(at, at + SESSION_LIFETIME),
         )
         return session, token
@@ -97,7 +99,19 @@ class Session:
     def is_valid_at(self, at: datetime) -> bool:
         return self.valid.contains(at)
 
+    def rotate(self) -> tuple["Session", str]:
+        """Swap in a new refresh token, so each one works only once."""
+        token = _new_refresh_token()
+        return replace(self, refresh_token_hash=hash_token(token)), token
+
+    def access_claims(self, at: datetime) -> AccessClaims:
+        return AccessClaims(person_id=self.person_id, session_id=self.id, expires_at=at + ACCESS_TOKEN_LIFETIME)
+
+
+def _new_refresh_token() -> str:
+    return secrets.token_urlsafe(32)
+
 
 def hash_token(token: str) -> str:
-    """SHA-256 is enough here: tokens are 256 random bits, unlike passwords."""
+    """SHA-256 is enough here: refresh tokens are 256 random bits, unlike passwords."""
     return hashlib.sha256(token.encode()).hexdigest()

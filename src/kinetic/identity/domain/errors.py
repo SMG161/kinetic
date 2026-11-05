@@ -16,3 +16,7 @@ class EmailAlreadyRegistered(IdentityError):
 
 class InvalidCredentials(IdentityError):
     """Deliberately vague: never reveal whether the email or the password was wrong."""
+
+
+class InvalidAccessToken(IdentityError):
+    pass

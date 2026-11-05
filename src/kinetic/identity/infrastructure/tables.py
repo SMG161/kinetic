@@ -40,6 +40,6 @@ class SessionRow(IdentityBase):
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     person_id: Mapped[UUID] = mapped_column(ForeignKey("identity.person.id"))
-    token_hash: Mapped[str] = mapped_column(unique=True)
+    refresh_token_hash: Mapped[str] = mapped_column(unique=True)
     created_at: Mapped[datetime]
     expires_at: Mapped[datetime]

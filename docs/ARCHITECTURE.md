@@ -87,8 +87,13 @@ We would split them if authentication moved to a vendor (Auth0, Cognito, an org'
 ### Mechanism
 
 - Email and password, hashed with **argon2**.
-- **Opaque session tokens**, stored hashed in Postgres. Revoking one is a row delete. JWT was rejected: the token carries no claims we would use, and revocation is harder.
-- The token resolves only to `person_id` and a session id. Personas and permissions are looked up on the server for every request. Roles in a token go stale; a covering provider would keep access after the coverage window ended.
+- **Short-lived JWT access tokens plus opaque refresh tokens** (the Supabase / Auth0 shape):
+  - The access token is a JWT (HS256, 15 minutes) holding only `sub` (person_id), `sid` (session id) and `exp`. Verifying it needs no database lookup.
+  - The refresh token is opaque, valid for 30 days, stored hashed in `identity.session` and rotated on every use. `POST /auth/refresh` swaps it for a new access token.
+  - Logout deletes the session row, so no new access tokens can be issued. **Trade-off accepted:** an access token already issued stays valid until it expires, at most 15 minutes.
+  - The algorithm is pinned when verifying, which rejects `alg: none` and algorithm-swap forgeries. Expiry is checked against the injected `Clock`.
+  - Considered and replaced: opaque session tokens checked on every request. They give instant revocation, but JWT is the industry-standard bearer format and is what an external identity provider would issue, so adopting it now keeps a later move to a vendor cheap.
+- The token resolves only to `person_id` and a session id. Personas and permissions are looked up on the server for every request. Roles in a token go stale; a covering provider would keep access after the coverage window ended. That is why the JWT carries no roles.
 - `GET /me` returns the person and all their personas (client, provider, staff memberships).
 
 ### Onboarding and invitations
@@ -245,7 +250,7 @@ scripts/
 
 ### API surface (thin)
 
-- `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`, `GET /me`
+- `POST /auth/signup`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /me`
 - `POST /invitations`, `POST /invitations/{token}/accept`
 - `POST /orgs`, `POST /orgs/{id}/staff`, `POST /providers`
 - `GET /care-teams/{id}` (filtered by viewer, optional `as_of`), `GET /care-teams/{id}/history`
@@ -269,7 +274,7 @@ Three days, one commit per step. The care team domain is built and tested before
 
 - [ ] Scaffold: docker compose, settings, FastAPI app, Alembic, `/health`
 - [ ] Shared kernel: `TimeRange` and `Clock`, with tests
-- [ ] Identity: signup, login, logout, `/me` with personas
+- [ ] Identity: signup, login, refresh, logout, `/me` with personas
 - [ ] Directory: orgs, staff memberships, provider profiles, independent providers
 - [ ] Invitations: hashed token, returned in the response instead of emailed
 
@@ -306,5 +311,5 @@ A strangler migration, no big-bang cutover:
 - Episodes of care.
 - A full consent workflow and client-specific access overrides.
 - Guardians and proxies, and break-the-glass emergency access.
-- Refresh tokens, email sending, rate limiting.
+- Email sending, rate limiting, refresh-token reuse detection (revoking the whole session when an old refresh token is replayed).
 - A real event bus; events are dispatched in-process.
