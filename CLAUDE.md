@@ -20,3 +20,7 @@ The design is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Read it before ch
 ## Commands
 
 - `uv sync` to install, `uv run pytest` to test.
+- `cp .env.example .env`, then `docker compose up -d --wait` (Postgres on host port 5433).
+- `uv run alembic upgrade head` to migrate; migrations are hand-written in `migrations/versions/`.
+- `uv run uvicorn kinetic.main:app --reload` to serve; `GET /health` checks the database.
+- No `make` on the dev machine: use the commands above.
