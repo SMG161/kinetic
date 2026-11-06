@@ -130,7 +130,12 @@ A provider is **independent** if they hold no practitioner membership. A clinic 
 3. A practitioner's disciplines at an org are a subset of their provider qualifications.
 4. At most one active client relationship per (org, client).
 5. While a relationship is active it has exactly one practice lead, who is staff of that org in any role (non-clinical is allowed). Changing the lead closes one assignment and opens the next at the same instant, as with team designations.
-6. A staff member cannot leave an org while they are a practice lead there, unless the same command hands the lead off.
+6. A staff member cannot leave an org while they are a practice lead there, unless the same command hands the lead off. (Removing staff is not built yet, so this cannot be broken today.)
+7. A client is never their own practice lead, for the same reason as care team invariant 11.
+
+Invariants 4 and 5 are also enforced in Postgres with exclusion constraints on `tstzrange(valid_from, valid_to)`, so two admins handing off at the same moment cannot both succeed.
+
+For now an owner or admin starts a relationship without the client's say. On its own it grants nothing: no records, no team membership. The client's consent arrives with invitations (an org invites the client, and accepting creates the relationship). Ending a relationship arrives with the care team's discharge command, which must close the org's memberships in the same transaction.
 
 ### Why client relationships live here, not in the care team
 
@@ -230,6 +235,7 @@ Closed periods plus `TeamEvent` rows keep who was on the team, in what role, whe
 | The gym stops serving the client | Discharge organization: its memberships and the relationship end at the same instant, designations handed off in the same command |
 | An independent physio's colleague covers | Coverage needs no shared org; the cover acts under the covered membership's org context |
 | A clinic owner also treats the client | Two staff memberships at one org (`OWNER`, `PRACTITIONER`); only the practitioner one lets them join a care team on that org's behalf |
+| A front desk worker is also a client of the gym | The gym can serve her, but someone else must be her practice lead (directory invariant 7) |
 | A physio who is also a client | One person with a Client and a Provider profile. She may treat others but never join her own team (invariant 11) |
 | A gym trainer who is also a client of the same gym | The gym has a client relationship with her and a practitioner membership for her. Her own records are visible to her as the client, never through her trainer role |
 
@@ -326,7 +332,7 @@ scripts/
 - `POST /auth/signup`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /me`
 - `POST /invitations`, `POST /invitations/{token}/accept`
 - `POST /orgs`, `POST /orgs/{id}/staff`, `POST /providers`
-- `POST /orgs/{id}/clients` (start a client relationship with its practice lead), `POST /orgs/{id}/clients/{cid}/practice-lead` (hand the lead off)
+- `POST /orgs/{id}/clients` (start a client relationship with its practice lead), `POST /orgs/{id}/clients/{cid}/practice-lead` (hand the lead off), `GET /orgs/{id}/clients/{cid}` (the relationship and its lead history, for the org's staff)
 - `POST /care-teams/{id}/orgs/{org_id}/discharge`
 - `GET /care-teams/{id}` (filtered by viewer, optional `as_of`), `GET /care-teams/{id}/history`
 - `POST /care-teams/{id}/members`, `POST .../members/{mid}/engagement`, `POST .../members/{mid}/end`
@@ -350,7 +356,7 @@ Three days, one commit per step. The care team domain is built and tested before
 - [x] Scaffold: docker compose, settings, FastAPI app, Alembic, `/health`
 - [x] Shared kernel: `TimeRange` and `Clock`, with tests
 - [x] Identity: signup, login, refresh, logout, `/me` (personas arrive with directory)
-- [ ] Directory: orgs, staff memberships (including practitioners), provider profiles, client profiles, client relationships with practice leads, personas on `/me`
+- [x] Directory: orgs, staff memberships (including practitioners), provider profiles, client profiles, client relationships with practice leads, personas on `/me`
 - [ ] Invitations: hashed token, returned in the response instead of emailed
 
 ### Day 2: the core

@@ -1,11 +1,13 @@
 """HTTP request and response shapes for directory. Enums validate roles and disciplines on input."""
 
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from kinetic.directory.application.services import Personas, StaffPersona
 from kinetic.directory.domain.model import Discipline, Organization, Provider, StaffMembership, StaffRole
+from kinetic.directory.domain.relationships import ClientRelationship, PracticeLeadAssignment
 from kinetic.identity.public import Person
 
 
@@ -21,6 +23,48 @@ class AddStaffRequest(BaseModel):
 
 class RegisterProviderRequest(BaseModel):
     qualifications: list[Discipline]
+
+
+class StartRelationshipRequest(BaseModel):
+    client_email: str
+    practice_lead_email: str
+    reason: str
+
+
+class HandOffPracticeLeadRequest(BaseModel):
+    practice_lead_email: str
+    reason: str
+
+
+class PracticeLeadResponse(BaseModel):
+    person_id: UUID
+    reason: str
+    valid_from: datetime
+    valid_to: datetime | None
+
+    @classmethod
+    def from_assignment(cls, a: PracticeLeadAssignment) -> "PracticeLeadResponse":
+        return cls(person_id=a.person_id, reason=a.reason, valid_from=a.period.start, valid_to=a.period.end)
+
+
+class ClientRelationshipResponse(BaseModel):
+    id: UUID
+    organization_id: UUID
+    client_id: UUID
+    valid_from: datetime
+    practice_lead: PracticeLeadResponse
+    lead_history: list[PracticeLeadResponse] = Field(description="Every lead, oldest first")
+
+    @classmethod
+    def from_relationship(cls, r: ClientRelationship) -> "ClientRelationshipResponse":
+        return cls(
+            id=r.id,
+            organization_id=r.organization_id,
+            client_id=r.client_id,
+            valid_from=r.period.start,
+            practice_lead=PracticeLeadResponse.from_assignment(r.current_lead),
+            lead_history=[PracticeLeadResponse.from_assignment(a) for a in r.leads],
+        )
 
 
 class StaffMembershipResponse(BaseModel):

@@ -6,10 +6,18 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from kinetic.directory.domain.errors import AlreadyRegistered, AlreadyStaff
+from kinetic.directory.domain.errors import AlreadyRegistered, AlreadyServed, AlreadyStaff, ConcurrentChange
 from kinetic.directory.domain.model import Client, Discipline, Organization, Provider, StaffMembership, StaffRole
-from kinetic.directory.infrastructure.tables import ClientRow, OrganizationRow, ProviderRow, StaffMembershipRow
-from kinetic.shared_kernel import ClientId, OrganizationId, PersonId, ProviderId
+from kinetic.directory.domain.relationships import ClientRelationship, PracticeLeadAssignment
+from kinetic.directory.infrastructure.tables import (
+    ClientRelationshipRow,
+    ClientRow,
+    OrganizationRow,
+    PracticeLeadAssignmentRow,
+    ProviderRow,
+    StaffMembershipRow,
+)
+from kinetic.shared_kernel import ClientId, OrganizationId, PersonId, ProviderId, TimeRange
 
 
 class SqlOrganizationRepository:
@@ -112,8 +120,90 @@ class SqlClientRepository:
         except IntegrityError as error:
             raise AlreadyRegistered("this person already has a client profile") from error
 
+    def get(self, client_id: ClientId) -> Client | None:
+        row = self._db.get(ClientRow, client_id)
+        return _to_client(row) if row else None
+
     def get_by_person(self, person_id: PersonId) -> Client | None:
         row = self._db.scalar(select(ClientRow).where(ClientRow.person_id == person_id))
+        return _to_client(row) if row else None
+
+
+class SqlClientRelationshipRepository:
+    def __init__(self, db: DbSession) -> None:
+        self._db = db
+
+    def add(self, relationship: ClientRelationship) -> None:
+        self._db.add(
+            ClientRelationshipRow(
+                id=relationship.id,
+                organization_id=relationship.organization_id,
+                client_id=relationship.client_id,
+                valid_from=relationship.period.start,
+                valid_to=relationship.period.end,
+            )
+        )
+        try:
+            self._db.flush()  # the relationship row must exist before lead rows reference it
+        except IntegrityError as error:
+            # one_relationship_at_a_time: another request started the same relationship first.
+            raise AlreadyServed("this organization already serves this client") from error
+        self.save(relationship)
+
+    def get_active(self, org_id: OrganizationId, client_id: ClientId) -> ClientRelationship | None:
+        row = self._db.scalar(
+            select(ClientRelationshipRow).where(
+                ClientRelationshipRow.organization_id == org_id,
+                ClientRelationshipRow.client_id == client_id,
+                ClientRelationshipRow.valid_to.is_(None),
+            )
+        )
         if row is None:
             return None
-        return Client(id=ClientId(row.id), person_id=PersonId(row.person_id), created_at=row.created_at)
+        lead_rows = self._db.scalars(
+            select(PracticeLeadAssignmentRow)
+            .where(PracticeLeadAssignmentRow.relationship_id == row.id)
+            .order_by(PracticeLeadAssignmentRow.valid_from)
+        )
+        leads = [
+            PracticeLeadAssignment(
+                id=lead.id,
+                person_id=PersonId(lead.person_id),
+                period=TimeRange(lead.valid_from, lead.valid_to),
+                reason=lead.reason,
+            )
+            for lead in lead_rows
+        ]
+        return ClientRelationship(
+            id=row.id,
+            organization_id=OrganizationId(row.organization_id),
+            client_id=ClientId(row.client_id),
+            period=TimeRange(row.valid_from, row.valid_to),
+            leads=leads,
+        )
+
+    def save(self, relationship: ClientRelationship) -> None:
+        for lead in relationship.leads:
+            row = self._db.get(PracticeLeadAssignmentRow, lead.id)
+            if row is None:
+                self._db.add(
+                    PracticeLeadAssignmentRow(
+                        id=lead.id,
+                        relationship_id=relationship.id,
+                        person_id=lead.person_id,
+                        reason=lead.reason,
+                        valid_from=lead.period.start,
+                        valid_to=lead.period.end,
+                    )
+                )
+            else:
+                row.valid_to = lead.period.end  # periods are only ever closed, never moved
+        try:
+            self._db.flush()
+        except IntegrityError as error:
+            # one_lead_at_a_time: a concurrent handoff committed first.
+            raise ConcurrentChange("the practice lead was changed by someone else; reload and retry") from error
+
+
+def _to_client(row: ClientRow) -> Client:
+    return Client(id=ClientId(row.id), person_id=PersonId(row.person_id), created_at=row.created_at)

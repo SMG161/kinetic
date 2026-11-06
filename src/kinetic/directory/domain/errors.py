@@ -7,7 +7,11 @@ class InvalidName(DirectoryError):
 
 
 class NotAnOrgManager(DirectoryError):
-    """Only an org's owner or admin may change its staff."""
+    """Only an org's owner or admin may change its staff or client relationships."""
+
+
+class NotOrgStaff(DirectoryError):
+    """The person holds no role at this org."""
 
 
 class InvalidStaffRole(DirectoryError):
@@ -32,3 +36,19 @@ class AlreadyRegistered(DirectoryError):
 
 class NotFound(DirectoryError):
     pass
+
+
+class AlreadyServed(DirectoryError):
+    """The org already has an active relationship with this client."""
+
+
+class InvalidPracticeLead(DirectoryError):
+    """The lead must be the org's staff, must not be the client, and must actually change on handoff."""
+
+
+class InvalidReason(DirectoryError):
+    pass
+
+
+class ConcurrentChange(DirectoryError):
+    """Someone else changed the same thing at the same moment; retry with fresh data."""

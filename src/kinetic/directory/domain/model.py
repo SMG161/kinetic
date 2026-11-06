@@ -16,6 +16,7 @@ from kinetic.directory.domain.errors import (
     InvalidStaffRole,
     NoDisciplines,
     NotAnOrgManager,
+    NotOrgStaff,
     NotQualified,
 )
 from kinetic.shared_kernel import ClientId, OrganizationId, PersonId, ProviderId
@@ -103,7 +104,11 @@ class Organization:
 
     def require_manager(self, actor: PersonId) -> None:
         if not self.roles_of(actor) & MANAGER_ROLES:
-            raise NotAnOrgManager("only the org's owner or an admin can change its staff")
+            raise NotAnOrgManager("only the org's owner or an admin can do this")
+
+    def require_staff(self, person_id: PersonId) -> None:
+        if not self.roles_of(person_id):
+            raise NotOrgStaff("this person is not staff of the organization")
 
     def add_staff(self, actor: PersonId, person_id: PersonId, role: StaffRole, at: datetime) -> StaffMembership:
         """Add an admin or front desk member. Owners only come from founding; practitioners from add_practitioner."""

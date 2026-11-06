@@ -13,6 +13,7 @@ from kinetic.dependencies import get_clock, get_db
 from kinetic.directory.application.services import DirectoryService
 from kinetic.directory.infrastructure.people import IdentityPeople
 from kinetic.directory.infrastructure.repositories import (
+    SqlClientRelationshipRepository,
     SqlClientRepository,
     SqlOrganizationRepository,
     SqlProviderRepository,
@@ -30,6 +31,7 @@ def get_directory_service(
         organizations=SqlOrganizationRepository(db),
         providers=SqlProviderRepository(db),
         clients=SqlClientRepository(db),
+        relationships=SqlClientRelationshipRepository(db),
         people=IdentityPeople(identity),
         clock=clock,
     )

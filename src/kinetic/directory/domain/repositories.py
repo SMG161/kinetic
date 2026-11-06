@@ -3,7 +3,8 @@
 from typing import Protocol
 
 from kinetic.directory.domain.model import Client, Organization, Provider
-from kinetic.shared_kernel import OrganizationId, PersonId
+from kinetic.directory.domain.relationships import ClientRelationship
+from kinetic.shared_kernel import ClientId, OrganizationId, PersonId
 
 
 class OrganizationRepository(Protocol):
@@ -22,4 +23,13 @@ class ProviderRepository(Protocol):
 
 class ClientRepository(Protocol):
     def add(self, client: Client) -> None: ...
+    def get(self, client_id: ClientId) -> Client | None: ...
     def get_by_person(self, person_id: PersonId) -> Client | None: ...
+
+
+class ClientRelationshipRepository(Protocol):
+    def add(self, relationship: ClientRelationship) -> None: ...
+    def get_active(self, org_id: OrganizationId, client_id: ClientId) -> ClientRelationship | None: ...
+    def save(self, relationship: ClientRelationship) -> None:
+        """Persist closed lead periods and newly opened ones."""
+        ...

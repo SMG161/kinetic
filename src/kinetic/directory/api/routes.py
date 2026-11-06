@@ -12,26 +12,34 @@ from fastapi.responses import JSONResponse
 from kinetic.directory.api.dependencies import DirectoryServiceDep
 from kinetic.directory.api.schemas import (
     AddStaffRequest,
+    ClientRelationshipResponse,
     CreateOrganizationRequest,
+    HandOffPracticeLeadRequest,
     MeResponse,
     OrganizationResponse,
     ProviderResponse,
     RegisterProviderRequest,
     StaffMembershipResponse,
+    StartRelationshipRequest,
 )
 from kinetic.directory.domain.errors import (
     AlreadyRegistered,
+    AlreadyServed,
     AlreadyStaff,
+    ConcurrentChange,
     DirectoryError,
     InvalidName,
+    InvalidPracticeLead,
+    InvalidReason,
     InvalidStaffRole,
     NoDisciplines,
     NotAnOrgManager,
     NotFound,
+    NotOrgStaff,
     NotQualified,
 )
 from kinetic.identity.public import IdentityServiceDep, SignupRequest, TokenResponse, current_person_id
-from kinetic.shared_kernel import OrganizationId, PersonId
+from kinetic.shared_kernel import ClientId, OrganizationId, PersonId
 
 router = APIRouter(tags=["directory"])
 CurrentPerson = Annotated[PersonId, Depends(current_person_id)]
@@ -72,15 +80,52 @@ def register_provider(
     return ProviderResponse.from_provider(directory.register_provider(person_id, body.qualifications))
 
 
+@router.post("/orgs/{org_id}/clients", status_code=201)
+def start_relationship(
+    org_id: UUID, body: StartRelationshipRequest, person_id: CurrentPerson, directory: DirectoryServiceDep
+) -> ClientRelationshipResponse:
+    relationship = directory.start_relationship(
+        person_id, OrganizationId(org_id), body.client_email, body.practice_lead_email, body.reason
+    )
+    return ClientRelationshipResponse.from_relationship(relationship)
+
+
+@router.post("/orgs/{org_id}/clients/{client_id}/practice-lead")
+def hand_off_practice_lead(
+    org_id: UUID,
+    client_id: UUID,
+    body: HandOffPracticeLeadRequest,
+    person_id: CurrentPerson,
+    directory: DirectoryServiceDep,
+) -> ClientRelationshipResponse:
+    relationship = directory.hand_off_practice_lead(
+        person_id, OrganizationId(org_id), ClientId(client_id), body.practice_lead_email, body.reason
+    )
+    return ClientRelationshipResponse.from_relationship(relationship)
+
+
+@router.get("/orgs/{org_id}/clients/{client_id}")
+def get_relationship(
+    org_id: UUID, client_id: UUID, person_id: CurrentPerson, directory: DirectoryServiceDep
+) -> ClientRelationshipResponse:
+    relationship = directory.get_relationship(person_id, OrganizationId(org_id), ClientId(client_id))
+    return ClientRelationshipResponse.from_relationship(relationship)
+
+
 _STATUS_FOR = {
     InvalidName: 422,
     InvalidStaffRole: 422,
     NoDisciplines: 422,
     NotQualified: 422,
+    InvalidPracticeLead: 422,
+    InvalidReason: 422,
     NotAnOrgManager: 403,
+    NotOrgStaff: 403,
     NotFound: 404,
     AlreadyStaff: 409,
     AlreadyRegistered: 409,
+    AlreadyServed: 409,
+    ConcurrentChange: 409,
 }
 
 

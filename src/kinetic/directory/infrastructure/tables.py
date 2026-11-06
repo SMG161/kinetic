@@ -52,3 +52,24 @@ class ClientRow(DirectoryBase):
     id: Mapped[UUID] = mapped_column(primary_key=True)
     person_id: Mapped[UUID] = mapped_column(unique=True)
     created_at: Mapped[datetime]
+
+
+class ClientRelationshipRow(DirectoryBase):
+    __tablename__ = "client_relationship"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    organization_id: Mapped[UUID] = mapped_column(ForeignKey("directory.organization.id"))
+    client_id: Mapped[UUID] = mapped_column(ForeignKey("directory.client.id"))
+    valid_from: Mapped[datetime]
+    valid_to: Mapped[datetime | None]
+
+
+class PracticeLeadAssignmentRow(DirectoryBase):
+    __tablename__ = "practice_lead_assignment"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    relationship_id: Mapped[UUID] = mapped_column(ForeignKey("directory.client_relationship.id"))
+    person_id: Mapped[UUID]
+    reason: Mapped[str]
+    valid_from: Mapped[datetime]
+    valid_to: Mapped[datetime | None]
