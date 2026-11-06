@@ -1,14 +1,71 @@
 """HTTP request and response shapes for directory. Enums validate roles and disciplines on input."""
 
 from datetime import datetime
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from kinetic.directory.application.services import Personas, StaffPersona
+from kinetic.directory.domain.invitations import Invitation, InvitationKind
 from kinetic.directory.domain.model import Discipline, Organization, Provider, StaffMembership, StaffRole
 from kinetic.directory.domain.relationships import ClientRelationship, PracticeLeadAssignment
-from kinetic.identity.public import Person
+from kinetic.identity.public import MAX_PASSWORD_LENGTH, Person, TokenResponse
+
+
+class _Strict(BaseModel):
+    model_config = ConfigDict(extra="forbid")  # fields from another kind are an error, not silently dropped
+
+
+class StaffInvitationRequest(_Strict):
+    kind: Literal[InvitationKind.STAFF]
+    email: str
+    role: StaffRole
+
+
+class PractitionerInvitationRequest(_Strict):
+    kind: Literal[InvitationKind.PRACTITIONER]
+    email: str
+    disciplines: list[Discipline]
+
+
+class ClientInvitationRequest(_Strict):
+    kind: Literal[InvitationKind.CLIENT]
+    email: str
+    practice_lead_email: str
+    reason: str
+
+
+# The "kind" field decides which of the three shapes the body must match.
+InvitationRequest = Annotated[
+    StaffInvitationRequest | PractitionerInvitationRequest | ClientInvitationRequest, Field(discriminator="kind")
+]
+
+
+class InvitationResponse(BaseModel):
+    id: UUID
+    kind: InvitationKind
+    email: str
+    expires_at: datetime
+    token: str = Field(description="Shown once. In production this would be emailed, not returned.")
+
+    @classmethod
+    def from_issued(cls, invitation: Invitation, token: str) -> "InvitationResponse":
+        return cls(
+            id=invitation.id, kind=invitation.kind, email=invitation.email, expires_at=invitation.valid.end, token=token
+        )
+
+
+class AcceptInvitationRequest(BaseModel):
+    token: str
+    full_name: str | None = Field(default=None, min_length=1, max_length=200, description="New people only")
+    password: str | None = Field(default=None, max_length=MAX_PASSWORD_LENGTH, description="New people only")
+
+
+class AcceptedInvitationResponse(BaseModel):
+    kind: InvitationKind
+    organization_id: UUID
+    tokens: TokenResponse | None = Field(description="Set when a new account was created, so you are signed in")
 
 
 class CreateOrganizationRequest(BaseModel):

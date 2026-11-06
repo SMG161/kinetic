@@ -2,6 +2,7 @@
 
 from typing import Protocol
 
+from kinetic.directory.domain.invitations import Invitation
 from kinetic.directory.domain.model import Client, Organization, Provider
 from kinetic.directory.domain.relationships import ClientRelationship
 from kinetic.shared_kernel import ClientId, OrganizationId, PersonId
@@ -25,6 +26,14 @@ class ClientRepository(Protocol):
     def add(self, client: Client) -> None: ...
     def get(self, client_id: ClientId) -> Client | None: ...
     def get_by_person(self, person_id: PersonId) -> Client | None: ...
+
+
+class InvitationRepository(Protocol):
+    def add(self, invitation: Invitation) -> None: ...
+    def get_by_token_hash(self, token_hash: str) -> Invitation | None: ...
+    def mark_accepted(self, invitation: Invitation) -> bool:
+        """Record the acceptance only if no one accepted first. False if someone did."""
+        ...
 
 
 class ClientRelationshipRepository(Protocol):

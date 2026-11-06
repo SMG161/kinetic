@@ -55,3 +55,13 @@ def current_claims(
 
 def current_person_id(claims: Annotated[AccessClaims, Depends(current_claims)]) -> PersonId:
     return claims.person_id
+
+
+def optional_current_person_id(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
+    service: IdentityServiceDep,
+) -> PersonId | None:
+    """None when no token is sent. A token that is sent must be valid: a bad one is 401, never anonymous."""
+    if credentials is None:
+        return None
+    return service.authenticate(credentials.credentials).person_id

@@ -64,6 +64,25 @@ class ClientRelationshipRow(DirectoryBase):
     valid_to: Mapped[datetime | None]
 
 
+class InvitationRow(DirectoryBase):
+    __tablename__ = "invitation"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    organization_id: Mapped[UUID] = mapped_column(ForeignKey("directory.organization.id"))
+    invited_by: Mapped[UUID]
+    email: Mapped[str]
+    kind: Mapped[str]
+    role: Mapped[str | None]
+    disciplines: Mapped[list[str]]
+    practice_lead_id: Mapped[UUID | None]
+    reason: Mapped[str | None]
+    token_hash: Mapped[str] = mapped_column(unique=True)
+    created_at: Mapped[datetime]
+    expires_at: Mapped[datetime]
+    accepted_at: Mapped[datetime | None]
+    accepted_by: Mapped[UUID | None]
+
+
 class PracticeLeadAssignmentRow(DirectoryBase):
     __tablename__ = "practice_lead_assignment"
 

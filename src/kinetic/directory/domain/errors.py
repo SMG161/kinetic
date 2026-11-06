@@ -50,5 +50,13 @@ class InvalidReason(DirectoryError):
     pass
 
 
+class InvitationUnusable(DirectoryError):
+    """Already accepted or expired."""
+
+
+class InvitationNotForYou(DirectoryError):
+    """The signed-in person's email is not the one the invitation was sent to."""
+
+
 class ConcurrentChange(DirectoryError):
     """Someone else changed the same thing at the same moment; retry with fresh data."""

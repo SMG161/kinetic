@@ -6,15 +6,22 @@ Identity is upstream and never imports directory, so whatever combines the two l
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, FastAPI, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from kinetic.directory.api.dependencies import DirectoryServiceDep
+from kinetic.directory.api.dependencies import DirectoryServiceDep, InvitationServiceDep
 from kinetic.directory.api.schemas import (
+    AcceptedInvitationResponse,
+    AcceptInvitationRequest,
     AddStaffRequest,
+    ClientInvitationRequest,
     ClientRelationshipResponse,
     CreateOrganizationRequest,
     HandOffPracticeLeadRequest,
+    InvitationRequest,
+    InvitationResponse,
+    PractitionerInvitationRequest,
+    StaffInvitationRequest,
     MeResponse,
     OrganizationResponse,
     ProviderResponse,
@@ -32,17 +39,26 @@ from kinetic.directory.domain.errors import (
     InvalidPracticeLead,
     InvalidReason,
     InvalidStaffRole,
+    InvitationNotForYou,
+    InvitationUnusable,
     NoDisciplines,
     NotAnOrgManager,
     NotFound,
     NotOrgStaff,
     NotQualified,
 )
-from kinetic.identity.public import IdentityServiceDep, SignupRequest, TokenResponse, current_person_id
+from kinetic.identity.public import (
+    IdentityServiceDep,
+    SignupRequest,
+    TokenResponse,
+    current_person_id,
+    optional_current_person_id,
+)
 from kinetic.shared_kernel import ClientId, OrganizationId, PersonId
 
 router = APIRouter(tags=["directory"])
 CurrentPerson = Annotated[PersonId, Depends(current_person_id)]
+OptionalPerson = Annotated[PersonId | None, Depends(optional_current_person_id)]
 
 
 @router.post("/auth/signup", status_code=201)
@@ -112,6 +128,42 @@ def get_relationship(
     return ClientRelationshipResponse.from_relationship(relationship)
 
 
+@router.post("/orgs/{org_id}/invitations", status_code=201)
+def invite(
+    org_id: UUID, body: InvitationRequest, person_id: CurrentPerson, invitations: InvitationServiceDep
+) -> InvitationResponse:
+    org = OrganizationId(org_id)
+    match body:
+        case StaffInvitationRequest():
+            issued = invitations.invite_staff(person_id, org, body.email, body.role)
+        case PractitionerInvitationRequest():
+            issued = invitations.invite_practitioner(person_id, org, body.email, body.disciplines)
+        case ClientInvitationRequest():
+            issued = invitations.invite_client(person_id, org, body.email, body.practice_lead_email, body.reason)
+    return InvitationResponse.from_issued(*issued)
+
+
+@router.post("/invitations/accept")
+def accept_invitation(
+    body: AcceptInvitationRequest,
+    caller: OptionalPerson,
+    identity: IdentityServiceDep,
+    invitations: InvitationServiceDep,
+) -> AcceptedInvitationResponse:
+    """Signed in: accept as yourself (your email must match). Not signed in: give a name and
+    password, and an account is created for the invited email. The token travels in the body,
+    never the URL, so it does not end up in logs or browser history."""
+    tokens = None
+    if caller is None:
+        if body.full_name is None or body.password is None:
+            raise HTTPException(422, "sign in, or give full_name and password to create an account")
+        invitation = invitations.pending(body.token)  # before creating an account for it
+        pair = identity.signup(body.full_name, invitation.email, body.password)
+        caller, tokens = pair.person_id, TokenResponse.from_pair(pair)
+    accepted = invitations.accept(body.token, caller)
+    return AcceptedInvitationResponse(kind=accepted.kind, organization_id=accepted.organization_id, tokens=tokens)
+
+
 _STATUS_FOR = {
     InvalidName: 422,
     InvalidStaffRole: 422,
@@ -121,7 +173,9 @@ _STATUS_FOR = {
     InvalidReason: 422,
     NotAnOrgManager: 403,
     NotOrgStaff: 403,
+    InvitationNotForYou: 403,
     NotFound: 404,
+    InvitationUnusable: 410,
     AlreadyStaff: 409,
     AlreadyRegistered: 409,
     AlreadyServed: 409,

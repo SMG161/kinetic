@@ -2,16 +2,18 @@
 
 from collections.abc import Iterable, Sequence
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
 from kinetic.directory.domain.errors import AlreadyRegistered, AlreadyServed, AlreadyStaff, ConcurrentChange
+from kinetic.directory.domain.invitations import Invitation, InvitationKind
 from kinetic.directory.domain.model import Client, Discipline, Organization, Provider, StaffMembership, StaffRole
 from kinetic.directory.domain.relationships import ClientRelationship, PracticeLeadAssignment
 from kinetic.directory.infrastructure.tables import (
     ClientRelationshipRow,
     ClientRow,
+    InvitationRow,
     OrganizationRow,
     PracticeLeadAssignmentRow,
     ProviderRow,
@@ -203,6 +205,60 @@ class SqlClientRelationshipRepository:
         except IntegrityError as error:
             # one_lead_at_a_time: a concurrent handoff committed first.
             raise ConcurrentChange("the practice lead was changed by someone else; reload and retry") from error
+
+
+class SqlInvitationRepository:
+    def __init__(self, db: DbSession) -> None:
+        self._db = db
+
+    def add(self, invitation: Invitation) -> None:
+        self._db.add(
+            InvitationRow(
+                id=invitation.id,
+                organization_id=invitation.organization_id,
+                invited_by=invitation.invited_by,
+                email=invitation.email,
+                kind=invitation.kind.value,
+                role=invitation.role.value if invitation.role else None,
+                disciplines=sorted(invitation.disciplines),
+                practice_lead_id=invitation.practice_lead,
+                reason=invitation.reason,
+                token_hash=invitation.token_hash,
+                created_at=invitation.valid.start,
+                expires_at=invitation.valid.end,
+            )
+        )
+        self._db.flush()
+
+    def get_by_token_hash(self, token_hash: str) -> Invitation | None:
+        row = self._db.scalar(select(InvitationRow).where(InvitationRow.token_hash == token_hash))
+        if row is None:
+            return None
+        return Invitation(
+            id=row.id,
+            organization_id=OrganizationId(row.organization_id),
+            invited_by=PersonId(row.invited_by),
+            email=row.email,
+            kind=InvitationKind(row.kind),
+            role=StaffRole(row.role) if row.role else None,
+            disciplines=frozenset(Discipline(d) for d in row.disciplines),
+            practice_lead=PersonId(row.practice_lead_id) if row.practice_lead_id else None,
+            reason=row.reason,
+            token_hash=row.token_hash,
+            valid=TimeRange(row.created_at, row.expires_at),
+            accepted_at=row.accepted_at,
+            accepted_by=PersonId(row.accepted_by) if row.accepted_by else None,
+        )
+
+    def mark_accepted(self, invitation: Invitation) -> bool:
+        # Compare-and-swap: if two people accept at once, the second waits for the row
+        # lock, re-checks "accepted_at IS NULL", and updates nothing.
+        result = self._db.execute(
+            update(InvitationRow)
+            .where(InvitationRow.id == invitation.id, InvitationRow.accepted_at.is_(None))
+            .values(accepted_at=invitation.accepted_at, accepted_by=invitation.accepted_by)
+        )
+        return result.rowcount == 1
 
 
 def _to_client(row: ClientRow) -> Client:

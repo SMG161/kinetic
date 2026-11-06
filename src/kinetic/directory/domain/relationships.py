@@ -70,10 +70,10 @@ def _assignment(org: Organization, client: Client, lead: PersonId, reason: str, 
         raise InvalidPracticeLead("a client cannot be their own practice lead")
     if not org.roles_of(lead):
         raise InvalidPracticeLead("the practice lead must be staff of the organization")
-    return PracticeLeadAssignment(id=uuid4(), person_id=lead, period=TimeRange(at), reason=_clean_reason(reason))
+    return PracticeLeadAssignment(id=uuid4(), person_id=lead, period=TimeRange(at), reason=clean_reason(reason))
 
 
-def _clean_reason(raw: str) -> str:
+def clean_reason(raw: str) -> str:
     reason = raw.strip()
     if not reason or len(reason) > MAX_REASON_LENGTH:
         raise InvalidReason(f"a reason of 1 to {MAX_REASON_LENGTH} characters is required")

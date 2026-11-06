@@ -22,8 +22,8 @@ We build four bounded contexts: `identity`, `directory`, `care_team` (the core) 
 
 ### Ubiquitous language per context
 
-- **identity** (who someone is): Person, Account, Credential, Session, Invitation. Hands everyone a `person_id` and nothing else.
-- **directory** (what someone is in the business): Organization, StaffMembership (owner, admin, front desk, practitioner), Provider (qualified disciplines; independent unless a practitioner somewhere), Client, Client Relationship (an org serving a client), Practice Lead (the org's accountable person for that client). One person can hold several personas, all pointing at one `person_id`.
+- **identity** (who someone is): Person, Account, Credential, Session. Hands everyone a `person_id` and nothing else.
+- **directory** (what someone is in the business): Organization, StaffMembership (owner, admin, front desk, practitioner), Provider (qualified disciplines; independent unless a practitioner somewhere), Client, Client Relationship (an org serving a client), Practice Lead (the org's accountable person for that client), Invitation (an org bringing someone in as staff, a practitioner or a client). One person can hold several personas, all pointing at one `person_id`.
 - **care_team** (the core): Care Team, Membership, Engagement, Designation (Booking Contact, Clinical Lead), Handoff, Coverage, Team Event. Owns the `AccessPolicy`.
 - **records** (thin): Clinical Record, Record Category, Author, Org Context. Asks `care_team` for every access decision.
 
@@ -102,7 +102,13 @@ We would split them if authentication moved to a vendor (Auth0, Cognito, an org'
 ### Onboarding and invitations
 
 - **Client self-signup** creates a Person, an Account and a Client profile.
-- **Invitations** use a random token stored hashed, with a type (org invites staff or a practitioner; provider or org invites client, optionally into a care team). Accepting either creates an account or links to an existing person by email. An org inviting a client creates the Client Relationship on acceptance.
+- **Invitations** live in `directory`, because what they do (a staff membership, a provider profile, a client relationship) is directory data; identity only creates the account. Three kinds, issued by an org's owner or admin: staff, practitioner, client.
+  - The token is 256 random bits, stored as a SHA-256 hash, valid for 7 days and usable once (a compare-and-swap update stops two acceptances).
+  - Accepting applies the same domain methods as doing it directly, acting as the inviter, so no rule is duplicated and the inviter's authority is re-checked. One transaction: if any rule fails, nothing is kept and the invitation stays pending.
+  - Signed in, you accept as yourself and your email must match. Not signed in, you give a name and password and an account is created for the invited email.
+  - The token travels in the request body, never the URL, so it stays out of logs, browser history and `Referer` headers.
+  - Invited staff and practitioners do not become clients; only a client invitation creates a Client profile, and accepting it is the client's consent to the relationship.
+  - A provider inviting a client into a care team arrives with the care team (Day 2); without a team it would only create a client profile.
 - Email sending is stubbed: the token is returned in the API response and the README says so.
 
 ## The practice directory
@@ -135,7 +141,7 @@ A provider is **independent** if they hold no practitioner membership. A clinic 
 
 Invariants 4 and 5 are also enforced in Postgres with exclusion constraints on `tstzrange(valid_from, valid_to)`, so two admins handing off at the same moment cannot both succeed.
 
-For now an owner or admin starts a relationship without the client's say. On its own it grants nothing: no records, no team membership. The client's consent arrives with invitations (an org invites the client, and accepting creates the relationship). Ending a relationship arrives with the care team's discharge command, which must close the org's memberships in the same transaction.
+An owner or admin can also start a relationship directly, without the client's say (for a walk-in, say). On its own it grants nothing: no records, no team membership. The consenting path is a client invitation: accepting it creates the relationship. Ending a relationship arrives with the care team's discharge command, which must close the org's memberships in the same transaction.
 
 ### Why client relationships live here, not in the care team
 
@@ -330,7 +336,7 @@ scripts/
 ### API surface (thin)
 
 - `POST /auth/signup`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /me`
-- `POST /invitations`, `POST /invitations/{token}/accept`
+- `POST /orgs/{id}/invitations`, `POST /invitations/accept` (token in the body)
 - `POST /orgs`, `POST /orgs/{id}/staff`, `POST /providers`
 - `POST /orgs/{id}/clients` (start a client relationship with its practice lead), `POST /orgs/{id}/clients/{cid}/practice-lead` (hand the lead off), `GET /orgs/{id}/clients/{cid}` (the relationship and its lead history, for the org's staff)
 - `POST /care-teams/{id}/orgs/{org_id}/discharge`
@@ -357,7 +363,7 @@ Three days, one commit per step. The care team domain is built and tested before
 - [x] Shared kernel: `TimeRange` and `Clock`, with tests
 - [x] Identity: signup, login, refresh, logout, `/me` (personas arrive with directory)
 - [x] Directory: orgs, staff memberships (including practitioners), provider profiles, client profiles, client relationships with practice leads, personas on `/me`
-- [ ] Invitations: hashed token, returned in the response instead of emailed
+- [x] Invitations: hashed token, returned in the response instead of emailed
 
 ### Day 2: the core
 
