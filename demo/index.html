@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kinetic Demo</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Kinetic demo</h1>
+      <p class="muted">A thin page over the real API. Every call shows up in the log on the right.</p>
+    </div>
+    <div id="session" class="session">
+      <span id="who">Signed out</span>
+      <button id="refresh" type="button">Refresh token</button>
+      <button id="logout" type="button">Log out</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="actions">
+      <section class="card">
+        <h2>1. Demo accounts</h2>
+        <p id="seed-hint" class="muted">Loading seed data…</p>
+        <ul id="accounts" class="accounts"></ul>
+      </section>
+
+      <section class="card">
+        <h2>2. Sign in or sign up</h2>
+        <form id="login-form" class="row">
+          <input name="email" type="email" placeholder="email" required>
+          <input name="password" type="password" placeholder="password" required>
+          <button>Log in</button>
+        </form>
+        <form id="signup-form" class="row">
+          <input name="full_name" placeholder="full name" required>
+          <input name="email" type="email" placeholder="email" required>
+          <input name="password" type="password" placeholder="password (8+)" required>
+          <button>Sign up as client</button>
+        </form>
+        <div class="row">
+          <button type="button" data-check="me">GET /me</button>
+          <button type="button" data-check="no-token">/me without a token</button>
+          <button type="button" data-check="forged">/me with a forged token</button>
+          <button type="button" data-check="health">GET /health</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>3. Who am I (personas)</h2>
+        <div id="me" class="muted">Sign in to see your personas.</div>
+      </section>
+
+      <section class="card">
+        <h2>4. Organizations and staff</h2>
+        <label>Organization
+          <select id="org"></select>
+        </label>
+        <form id="org-form" class="row">
+          <input name="name" placeholder="new organization name" required>
+          <button>Found organization</button>
+        </form>
+        <form id="staff-form">
+          <div class="row">
+            <input name="email" type="email" placeholder="staff email" required>
+            <select name="role">
+              <option>ADMIN</option><option>FRONT_DESK</option><option>PRACTITIONER</option><option>OWNER</option>
+            </select>
+          </div>
+          <div class="disciplines" data-name="disciplines">Disciplines (practitioners only):</div>
+          <button>Add staff to organization</button>
+        </form>
+        <form id="provider-form">
+          <div class="disciplines" data-name="qualifications">Your qualifications:</div>
+          <button>Register me as a provider</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>5. Client relationships and practice leads</h2>
+        <p class="muted">Uses the organization picked above.</p>
+        <form id="relationship-form" class="row">
+          <input name="client_email" type="email" placeholder="client email" required>
+          <input name="practice_lead_email" type="email" placeholder="practice lead email" required>
+          <input name="reason" placeholder="reason" required>
+          <button>Start relationship</button>
+        </form>
+        <label>Client id
+          <input id="client-id" list="client-ids" placeholder="client id">
+          <datalist id="client-ids"></datalist>
+        </label>
+        <form id="handoff-form" class="row">
+          <input name="practice_lead_email" type="email" placeholder="new practice lead email" required>
+          <input name="reason" placeholder="reason" required>
+          <button>Hand off practice lead</button>
+        </form>
+        <button id="view-relationship" type="button">View relationship and lead history</button>
+        <div id="relationship"></div>
+      </section>
+
+      <section class="card">
+        <h2>6. Invitations</h2>
+        <form id="invite-form">
+          <div class="row">
+            <select name="kind" id="invite-kind">
+              <option>STAFF</option><option>PRACTITIONER</option><option>CLIENT</option>
+            </select>
+            <input name="email" type="email" placeholder="invitee email" required>
+          </div>
+          <div class="row" data-kind="STAFF">
+            <select name="role"><option>ADMIN</option><option>FRONT_DESK</option></select>
+          </div>
+          <div class="disciplines" data-kind="PRACTITIONER" data-name="disciplines">Disciplines:</div>
+          <div class="row" data-kind="CLIENT">
+            <input name="practice_lead_email" type="email" placeholder="practice lead email">
+            <input name="reason" placeholder="reason">
+          </div>
+          <button>Send invitation (from the organization above)</button>
+        </form>
+        <h3>Accept</h3>
+        <ul id="pending" class="accounts"></ul>
+        <form id="accept-form">
+          <input name="token" placeholder="invitation token" required>
+          <div class="row">
+            <label><input type="radio" name="mode" value="signed-in" checked> as the signed-in person</label>
+            <label><input type="radio" name="mode" value="new"> as a new person</label>
+          </div>
+          <div class="row">
+            <input name="full_name" placeholder="full name (new person)">
+            <input name="password" type="password" placeholder="password (new person)">
+          </div>
+          <button>Accept invitation</button>
+        </form>
+      </section>
+    </div>
+
+    <aside class="card log">
+      <div class="log-head">
+        <h2>Response log</h2>
+        <button id="clear-log" type="button">Clear</button>
+      </div>
+      <ol id="log"></ol>
+    </aside>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

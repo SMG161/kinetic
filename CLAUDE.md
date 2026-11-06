@@ -23,5 +23,6 @@ The design is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Read it before ch
 - `cp .env.example .env`, then `docker compose up -d --wait` (Postgres on host port 5433).
 - `uv run python -m alembic upgrade head` to migrate; migrations are hand-written in `migrations/versions/`.
 - `uv run python -m uvicorn kinetic.main:app --reload` to serve; `GET /health` checks the database.
+- `uv run python scripts/seed.py --reset` fills the dev database with synthetic demo data through the API; the demo page is at `http://localhost:8000/demo/`.
 - No `make` on the dev machine: use the commands above.
 - Use `uv run python -m <tool>`: on this Windows machine `uv run <tool>` fails with "uv trampoline failed to canonicalize script path".
