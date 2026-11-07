@@ -31,7 +31,6 @@ M_ALI = member(ALI, Discipline.TRAINER, engagement=Engagement.ALUMNI)
 SAM_COVERS_PIA = CoverView(M_PIA.membership_id, SAM, TimeRange(T0 + 10 * DAY, T0 + 24 * DAY))
 
 TEAM = TeamView(
-    team_id=uuid4(),
     client_id=ClientId(uuid4()),
     client_person_id=MAYA,
     members=(M_TOM, M_PIA, M_CHEN, M_MIA, M_OLD, M_ALI),
@@ -41,12 +40,12 @@ LEADS = {GYM: ADA, CLINIC: CHEN}  # Ada leads Maya at the gym; Chen leads her at
 
 
 def manage(who, action, membership=None, org=None, at=NOW):
-    target = TeamTarget(TEAM.team_id, membership.membership_id if membership else None, org)
+    target = TeamTarget(TEAM.client_id, membership.membership_id if membership else None, org)
     return decide(who, action, target, TEAM, LEADS, at)
 
 
 def care(who, action, category=None, author=None, at=NOW):
-    return decide(who, action, RecordTarget(TEAM.team_id, category, author), TEAM, LEADS, at)
+    return decide(who, action, RecordTarget(TEAM.client_id, category, author), TEAM, LEADS, at)
 
 
 class TestViewingTheTeam:
@@ -101,7 +100,7 @@ class TestManagingMembers:
         assert not manage(TOM, Action.DISCHARGE_ORGANIZATION, org=GYM).allowed
 
     def test_unknown_membership(self):
-        decision = decide(ADA, Action.END_MEMBERSHIP, TeamTarget(TEAM.team_id, uuid4()), TEAM, LEADS, NOW)
+        decision = decide(ADA, Action.END_MEMBERSHIP, TeamTarget(TEAM.client_id, uuid4()), TEAM, LEADS, NOW)
         assert not decision.allowed and "no such membership" in decision.reason
 
 
@@ -111,10 +110,10 @@ class TestEngagementDecidesActions:
         assert care(PIA, action, RecordCategory.CLINICAL_NOTE).allowed
 
     def test_consulting_members_view_and_message_only(self):
-        team = TeamView(TEAM.team_id, TEAM.client_id, MAYA, (member(PIA, Discipline.PHYSIO, engagement=Engagement.CONSULTING),), ())
+        team = TeamView(TEAM.client_id, MAYA, (member(PIA, Discipline.PHYSIO, engagement=Engagement.CONSULTING),), ())
         allowed = {
             a for a in (Action.VIEW_RECORD, Action.WRITE_NOTE, Action.RUN_SESSION, Action.MESSAGE_CLIENT, Action.BILL)
-            if decide(PIA, a, RecordTarget(team.team_id, RecordCategory.ASSESSMENT), team, {}, NOW).allowed
+            if decide(PIA, a, RecordTarget(team.client_id, RecordCategory.ASSESSMENT), team, {}, NOW).allowed
         }
         assert allowed == {Action.VIEW_RECORD, Action.MESSAGE_CLIENT}
 
@@ -178,8 +177,8 @@ class TestEveryoneElse:
 
 class TestAccessService:
     class Teams:
-        def team(self, team_id):
-            return TEAM if team_id == TEAM.team_id else None
+        def team(self, client_id):
+            return TEAM if client_id == TEAM.client_id else None
 
     class Practices:
         def leads(self, client_id, at):
@@ -188,15 +187,15 @@ class TestAccessService:
     def test_it_decides_at_the_clocks_now(self):
         clock = FixedClock(NOW)
         service = AccessService(self.Teams(), self.Practices(), clock)
-        target = RecordTarget(TEAM.team_id, RecordCategory.ASSESSMENT)
+        target = RecordTarget(TEAM.client_id, RecordCategory.ASSESSMENT)
         assert service.decide(SAM, Action.VIEW_RECORD, target).allowed
         clock.advance(20 * DAY)  # day 32: the coverage is over
         assert not service.decide(SAM, Action.VIEW_RECORD, target).allowed
 
     def test_it_uses_practice_leads_for_team_actions(self):
         service = AccessService(self.Teams(), self.Practices(), FixedClock(NOW))
-        assert service.decide(ADA, Action.VIEW_TEAM, TeamTarget(TEAM.team_id)).scope == frozenset({GYM})
+        assert service.decide(ADA, Action.VIEW_TEAM, TeamTarget(TEAM.client_id)).scope == frozenset({GYM})
 
-    def test_an_unknown_team_is_denied(self):
+    def test_an_unknown_client_is_denied(self):
         service = AccessService(self.Teams(), self.Practices(), FixedClock(NOW))
-        assert not service.decide(MAYA, Action.VIEW_TEAM, TeamTarget(uuid4())).allowed
+        assert not service.decide(MAYA, Action.VIEW_TEAM, TeamTarget(ClientId(uuid4()))).allowed

@@ -15,7 +15,7 @@ The design is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Read it before ch
 - `domain/` is pure Python (dataclasses). No SQLAlchemy, FastAPI or Pydantic there.
 - Contexts talk only through ports or each other's public module, never by reaching into internals.
 - `shared_kernel/` holds only ids, `Clock`, `TimeRange`, `DomainEvent`.
-- Only `access` decides access. Other contexts supply facts through its ports and call it through `access.public`; `access` imports no other context. Nothing else re-derives policy.
+- Only `access` decides access. Other contexts supply facts through its ports and call it through `access.public`; `access` imports no other context except `identity.public`, to know who is calling. Nothing else re-derives policy.
 
 ## Commands
 

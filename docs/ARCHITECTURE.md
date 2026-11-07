@@ -62,7 +62,7 @@ The same word means different things per context, which is the reason the contex
 
 Arrows point downstream. The dashed box is described in the README only.
 
-Boundaries are enforced with one Postgres schema per context (no cross-schema foreign keys except to `identity.person`) and an **import-linter** contract: `care_team.domain` and `access.domain` import nothing outside themselves and the shared kernel, `access` imports no other context, and contexts import each other only through a public module.
+Boundaries are enforced with one Postgres schema per context (no cross-schema foreign keys except to `identity.person`) and an **import-linter** contract: `care_team.domain` and `access.domain` import nothing outside themselves and the shared kernel, `access` imports no other context except `identity.public` (authentication comes before authorization), and contexts import each other only through a public module.
 
 ### Rejected boundaries
 

@@ -5,7 +5,7 @@ from typing import Protocol
 from kinetic.directory.domain.invitations import Invitation
 from kinetic.directory.domain.model import Client, Organization, Provider
 from kinetic.directory.domain.relationships import ClientRelationship
-from kinetic.shared_kernel import ClientId, OrganizationId, PersonId
+from kinetic.shared_kernel import ClientId, OrganizationId, PersonId, ProviderId
 
 
 class OrganizationRepository(Protocol):
@@ -19,6 +19,7 @@ class OrganizationRepository(Protocol):
 
 class ProviderRepository(Protocol):
     def add(self, provider: Provider) -> None: ...
+    def get(self, provider_id: ProviderId) -> Provider | None: ...
     def get_by_person(self, person_id: PersonId) -> Provider | None: ...
 
 
@@ -39,6 +40,9 @@ class InvitationRepository(Protocol):
 class ClientRelationshipRepository(Protocol):
     def add(self, relationship: ClientRelationship) -> None: ...
     def get_active(self, org_id: OrganizationId, client_id: ClientId) -> ClientRelationship | None: ...
+    def list_for_client(self, client_id: ClientId) -> list[ClientRelationship]:
+        """Every relationship the client has had, ended ones included."""
+        ...
     def save(self, relationship: ClientRelationship) -> None:
         """Persist closed lead periods and newly opened ones."""
         ...

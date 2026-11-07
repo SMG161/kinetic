@@ -14,8 +14,8 @@ class AccessService:
 
     def decide(self, principal: PersonId, action: Action, target: Target) -> Decision:
         at = self._clock.now()  # decided at request time, so ended windows never linger
-        team = self._teams.team(target.team_id)
+        team = self._teams.team(target.client_id)
         if team is None:
-            return Decision.deny("no such care team")
+            return Decision.deny("no such client")
         leads = self._practices.leads(team.client_id, at) if isinstance(target, TeamTarget) else {}
         return decide(principal, action, target, team, leads, at)

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from uuid import UUID
 
-from kinetic.shared_kernel import OrganizationId, PersonId
+from kinetic.shared_kernel import ClientId, OrganizationId, PersonId
 
 
 class Discipline(StrEnum):
@@ -53,20 +53,26 @@ class Action(StrEnum):
     BILL = "BILL"
 
 
+CARE_ACTIONS = frozenset(
+    {Action.VIEW_RECORD, Action.WRITE_NOTE, Action.RUN_SESSION, Action.MESSAGE_CLIENT, Action.BILL}
+)
+
+
 @dataclass(frozen=True)
 class TeamTarget:
-    """A team, and for membership actions the membership, or for add/discharge the org."""
+    """A client's care team (one per client, so the client names it), and for membership
+    actions the membership, or for add/discharge the org."""
 
-    team_id: UUID
+    client_id: ClientId
     membership_id: UUID | None = None
     org_id: OrganizationId | None = None
 
 
 @dataclass(frozen=True)
 class RecordTarget:
-    """Care for the team's client. Viewing or writing a record names its category (and author)."""
+    """Care for a client. Viewing or writing a record names its category (and author)."""
 
-    team_id: UUID
+    client_id: ClientId
     category: RecordCategory | None = None
     author: PersonId | None = None
 

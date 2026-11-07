@@ -11,6 +11,7 @@ from collections.abc import Mapping
 from datetime import datetime
 
 from kinetic.access.domain.model import (
+    CARE_ACTIONS,
     Action,
     Decision,
     Discipline,
@@ -24,9 +25,7 @@ from kinetic.access.domain.ports import MemberView, TeamView
 from kinetic.shared_kernel import OrganizationId, PersonId
 
 ACTIONS_BY_ENGAGEMENT: Mapping[Engagement, frozenset[Action]] = {
-    Engagement.ACTIVE: frozenset(
-        {Action.VIEW_RECORD, Action.WRITE_NOTE, Action.RUN_SESSION, Action.MESSAGE_CLIENT, Action.BILL}
-    ),
+    Engagement.ACTIVE: CARE_ACTIONS,
     Engagement.CONSULTING: frozenset({Action.VIEW_RECORD, Action.MESSAGE_CLIENT}),
     Engagement.ALUMNI: frozenset({Action.VIEW_RECORD}),  # and only records they wrote
 }
@@ -126,7 +125,7 @@ def _manage(
 
 
 def _care(principal: PersonId, action: Action, target: RecordTarget, team: TeamView, at: datetime) -> Decision:
-    if action not in ACTIONS_BY_ENGAGEMENT[Engagement.ACTIVE]:
+    if action not in CARE_ACTIONS:
         return Decision.deny(f"{action} is not a care action")
     if principal == team.client_person_id:
         if action is Action.VIEW_RECORD:

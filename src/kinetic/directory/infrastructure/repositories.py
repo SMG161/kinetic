@@ -99,16 +99,13 @@ class SqlProviderRepository:
         except IntegrityError as error:
             raise AlreadyRegistered("this person already has a provider profile") from error
 
+    def get(self, provider_id: ProviderId) -> Provider | None:
+        row = self._db.get(ProviderRow, provider_id)
+        return _to_provider(row) if row else None
+
     def get_by_person(self, person_id: PersonId) -> Provider | None:
         row = self._db.scalar(select(ProviderRow).where(ProviderRow.person_id == person_id))
-        if row is None:
-            return None
-        return Provider(
-            id=ProviderId(row.id),
-            person_id=PersonId(row.person_id),
-            qualifications=frozenset(Discipline(q) for q in row.qualifications),
-            created_at=row.created_at,
-        )
+        return _to_provider(row) if row else None
 
 
 class SqlClientRepository:
@@ -160,8 +157,17 @@ class SqlClientRelationshipRepository:
                 ClientRelationshipRow.valid_to.is_(None),
             )
         )
-        if row is None:
-            return None
+        return self._to_relationship(row) if row else None
+
+    def list_for_client(self, client_id: ClientId) -> list[ClientRelationship]:
+        rows = self._db.scalars(
+            select(ClientRelationshipRow)
+            .where(ClientRelationshipRow.client_id == client_id)
+            .order_by(ClientRelationshipRow.valid_from)
+        )
+        return [self._to_relationship(row) for row in rows]
+
+    def _to_relationship(self, row: ClientRelationshipRow) -> ClientRelationship:
         lead_rows = self._db.scalars(
             select(PracticeLeadAssignmentRow)
             .where(PracticeLeadAssignmentRow.relationship_id == row.id)
@@ -259,6 +265,15 @@ class SqlInvitationRepository:
             .values(accepted_at=invitation.accepted_at, accepted_by=invitation.accepted_by)
         )
         return result.rowcount == 1
+
+
+def _to_provider(row: ProviderRow) -> Provider:
+    return Provider(
+        id=ProviderId(row.id),
+        person_id=PersonId(row.person_id),
+        qualifications=frozenset(Discipline(q) for q in row.qualifications),
+        created_at=row.created_at,
+    )
 
 
 def _to_client(row: ClientRow) -> Client:

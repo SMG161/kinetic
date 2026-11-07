@@ -35,7 +35,8 @@ class CoverView:
 
 @dataclass(frozen=True)
 class TeamView:
-    team_id: UUID
+    """A client's care team; empty if the client has no team yet."""
+
     client_id: ClientId
     client_person_id: PersonId
     members: tuple[MemberView, ...]
@@ -43,7 +44,9 @@ class TeamView:
 
 
 class TeamFacts(Protocol):
-    def team(self, team_id: UUID) -> TeamView | None: ...
+    def team(self, client_id: ClientId) -> TeamView | None:
+        """The client's team, empty if they have none yet. None if there is no such client."""
+        ...
 
 
 class PracticeFacts(Protocol):
