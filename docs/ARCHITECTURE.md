@@ -363,7 +363,8 @@ tests/
   unit/                 # pure domain, no database
   scenarios/            # one test per brief scenario, real Postgres
 scripts/
-  seed.py  demo.py
+  seed.py               # synthetic data, through the real API
+demo/                   # a plain HTML page over the API, served at /demo/
 ```
 
 ### API surface (thin)
@@ -384,7 +385,7 @@ scripts/
 
 - **Unit tests** for every invariant and every value object, with no database.
 - **Scenario tests** through the HTTP API against real Postgres, one per bullet in the brief plus the extra cases found, using a fixed `Clock`.
-- **Seed and demo scripts** with synthetic people: client Maya, IronWorks Gym, a trainer, an independent physio and her covering colleague, a sports physician, a massage therapist. The demo prints each access decision with its reason.
+- **A seed script and a demo page** with synthetic people: client Maya, IronWorks Gym, a trainer, an independent physio and her covering colleague, a sports physician, a massage therapist. The page's Explain section shows each access decision with its reason.
 - **import-linter** runs with the tests, so a boundary violation fails the build.
 
 ## Build order
@@ -412,7 +413,7 @@ Three days, one commit per step. The care team domain is built and tested before
 ### Day 3: proof and writing
 
 - [ ] Scenario tests, one per brief bullet plus the extra cases found
-- [ ] Seed and demo scripts
+- [x] Seed script and demo page
 - [x] import-linter contract
 - [ ] README: overview, setup, architecture, 3–5 key decisions, cuts and next steps
 - [ ] Open questions and the migration write-up

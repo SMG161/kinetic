@@ -122,6 +122,83 @@
           <button>Accept invitation</button>
         </form>
       </section>
+      <section class="card">
+        <h2>7. Care team</h2>
+        <p class="muted">Uses the client id in section 5 (Maya by default) and the organization in section 4.</p>
+        <div class="row">
+          <label>As of <input id="as-of" type="datetime-local"></label>
+          <button id="view-team" type="button">View team</button>
+          <button id="view-history" type="button">View history</button>
+        </div>
+        <div id="team"></div>
+        <h3>Add a member of the organization above</h3>
+        <form id="member-form" class="row">
+          <input name="provider_email" type="email" placeholder="provider email" required>
+          <select name="discipline" class="discipline-select"></select>
+          <input name="reason" placeholder="reason" required>
+          <button>Add member</button>
+        </form>
+        <h3>Change the selected member <small id="selected" class="muted">(pick one in the table)</small></h3>
+        <form id="engagement-form" class="row">
+          <select name="engagement"><option>CONSULTING</option><option>ACTIVE</option><option>ALUMNI</option></select>
+          <input name="reason" placeholder="reason" required>
+          <button>Change engagement</button>
+        </form>
+        <form id="end-form" class="row">
+          <input name="reason" placeholder="reason" required>
+          <button>End membership</button>
+        </form>
+        <form id="coverage-form" class="row">
+          <input name="covering_provider_email" type="email" placeholder="covering provider email" required>
+          <label>Days from now <input name="start_in" type="number" min="1" value="1"></label>
+          <label>For days <input name="days" type="number" min="1" value="14"></label>
+          <input name="reason" placeholder="reason" required>
+          <button>Schedule coverage</button>
+        </form>
+        <h3>Discharge the organization above</h3>
+        <form id="discharge-form" class="row">
+          <input name="reason" placeholder="reason" required>
+          <button>Discharge organization</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>8. Care invitations (a provider invites a client)</h2>
+        <form id="care-invite-form" class="row">
+          <input name="client_email" type="email" placeholder="client email" required>
+          <select name="discipline" class="discipline-select"></select>
+          <input name="reason" placeholder="reason" required>
+          <button>Invite client</button>
+        </form>
+        <ul id="pending-care" class="accounts"></ul>
+        <form id="care-accept-form" class="row">
+          <input name="token" placeholder="care invitation token" required>
+          <button>Accept as the signed-in client</button>
+        </form>
+      </section>
+
+      <section class="card">
+        <h2>9. Records</h2>
+        <p class="muted">The same list shows a different slice to each person: sign in as Dr Chen, then Mia.</p>
+        <form id="record-form" class="row">
+          <select name="category" class="category-select"></select>
+          <input name="body" placeholder="synthetic note" required>
+          <button>Write record</button>
+        </form>
+        <button id="view-records" type="button">View records I may see</button>
+        <div id="records"></div>
+      </section>
+
+      <section class="card">
+        <h2>10. Explain: may I do this, and why?</h2>
+        <p class="muted">Asks the access policy as the signed-in person. Member actions use the selected member.</p>
+        <form id="explain-form" class="row">
+          <select name="action" id="explain-action"></select>
+          <select name="category" class="category-select"><option value="">(no category)</option></select>
+          <button>Explain</button>
+        </form>
+        <p id="explanation"></p>
+      </section>
     </div>
 
     <aside class="card log">
