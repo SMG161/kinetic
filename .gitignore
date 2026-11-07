@@ -19,3 +19,6 @@ demo/seed.json
 .vscode/
 .idea/
 .DS_Store
+
+# Local AI assistant instructions
+CLAUDE.md
