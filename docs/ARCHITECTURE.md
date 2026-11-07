@@ -282,9 +282,12 @@ Access combines two small tables instead of one permissions matrix: **discipline
 
 | Discipline | Record categories visible |
 |---|---|
-| Physician, physio | medical_history, assessment, session_note, training_plan |
-| Trainer | training_plan, non-clinical session_note, assessment summary |
-| Massage, nutrition | their own plan type, non-clinical session_note |
+| Physician, physio | `MEDICAL_HISTORY`, `ASSESSMENT`, `ASSESSMENT_SUMMARY`, `CLINICAL_NOTE`, `SESSION_NOTE`, `TRAINING_PLAN` |
+| Trainer | `TRAINING_PLAN`, `SESSION_NOTE`, `ASSESSMENT_SUMMARY` |
+| Massage | `MASSAGE_PLAN`, `SESSION_NOTE` |
+| Nutrition | `NUTRITION_PLAN`, `SESSION_NOTE` |
+
+`SESSION_NOTE` is non-clinical; `CLINICAL_NOTE` is clinical. Writing a note needs the same category to be visible. The client sees all of their own records and acts on none; a practice lead gets no records from being a lead.
 
 This separates "see" from "act" naturally. The physio stepping back after rehab is only a change from `ACTIVE` to `CONSULTING`, and no table changes.
 
@@ -401,7 +404,7 @@ Three days, one commit per step. The care team domain is built and tested before
 - [x] Directory revision: invitations are the only way into an org; signup as a provider
 - [x] CareTeam domain model and invariant unit tests, no database
 - [x] Persistence: exclusion constraints, optimistic locking, repositories
-- [ ] `access` context: the policy (PDP) and its fact ports, unit-tested, no endpoints yet
+- [x] `access` context: the policy (PDP) and its fact ports, unit-tested, no endpoints yet
 - [ ] Commands: directory's public module, the `ProviderDirectory` port, care team service and endpoints behind the PEP, `as_of`, `/access/explain`
 - [ ] Care invitations: a solo provider invites a client
 - [ ] Thin `records` context asking `access` for every decision
