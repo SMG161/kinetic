@@ -413,7 +413,7 @@ Three days, one commit per step. The care team domain is built and tested before
 
 - [ ] Scenario tests, one per brief bullet plus the extra cases found
 - [ ] Seed and demo scripts
-- [ ] import-linter contract
+- [x] import-linter contract
 - [ ] README: overview, setup, architecture, 3–5 key decisions, cuts and next steps
 - [ ] Open questions and the migration write-up
 

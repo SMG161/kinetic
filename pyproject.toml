@@ -28,5 +28,111 @@ testpaths = ["tests"]
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "import-linter>=2.16",
     "pytest>=9.2.0",
 ]
+
+# The boundaries in docs/ARCHITECTURE.md, as rules that fail the tests when broken.
+# main.py is deliberately in none of these: the composition root knows every context.
+[tool.importlinter]
+root_package = "kinetic"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Domains are pure Python"
+type = "forbidden"
+source_modules = [
+    "kinetic.identity.domain",
+    "kinetic.directory.domain",
+    "kinetic.care_team.domain",
+    "kinetic.records.domain",
+    "kinetic.access.domain",
+]
+forbidden_modules = ["sqlalchemy", "fastapi", "pydantic", "alembic"]
+
+[[tool.importlinter.contracts]]
+name = "The shared kernel knows no context"
+type = "forbidden"
+source_modules = ["kinetic.shared_kernel"]
+forbidden_modules = [
+    "kinetic.identity",
+    "kinetic.directory",
+    "kinetic.care_team",
+    "kinetic.records",
+    "kinetic.access",
+]
+
+[[tool.importlinter.contracts]]
+name = "access knows no context but identity's public module"
+type = "forbidden"
+source_modules = ["kinetic.access"]
+forbidden_modules = ["kinetic.directory", "kinetic.care_team", "kinetic.records"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Upstream contexts do not know downstream ones"
+type = "forbidden"
+source_modules = ["kinetic.identity", "kinetic.directory"]
+forbidden_modules = ["kinetic.care_team", "kinetic.records", "kinetic.access"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "identity does not know directory"
+type = "forbidden"
+source_modules = ["kinetic.identity"]
+forbidden_modules = ["kinetic.directory"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Only identity's public module is public"
+type = "forbidden"
+source_modules = ["kinetic.directory", "kinetic.care_team", "kinetic.records", "kinetic.access"]
+forbidden_modules = [
+    "kinetic.identity.domain",
+    "kinetic.identity.application",
+    "kinetic.identity.infrastructure",
+    "kinetic.identity.api",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Only directory's public module is public"
+type = "forbidden"
+source_modules = ["kinetic.identity", "kinetic.care_team", "kinetic.records", "kinetic.access"]
+forbidden_modules = [
+    "kinetic.directory.domain",
+    "kinetic.directory.application",
+    "kinetic.directory.infrastructure",
+    "kinetic.directory.api",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Only care_team's public module is public"
+type = "forbidden"
+source_modules = ["kinetic.identity", "kinetic.directory", "kinetic.records", "kinetic.access"]
+forbidden_modules = [
+    "kinetic.care_team.domain",
+    "kinetic.care_team.application",
+    "kinetic.care_team.infrastructure",
+    "kinetic.care_team.api",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Nothing depends on records"
+type = "forbidden"
+source_modules = ["kinetic.identity", "kinetic.directory", "kinetic.care_team", "kinetic.access"]
+forbidden_modules = ["kinetic.records"]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Only access's public module is public"
+type = "forbidden"
+source_modules = ["kinetic.identity", "kinetic.directory", "kinetic.care_team", "kinetic.records"]
+forbidden_modules = [
+    "kinetic.access.domain",
+    "kinetic.access.application",
+    "kinetic.access.api",
+]
+allow_indirect_imports = true
