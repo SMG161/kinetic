@@ -16,6 +16,7 @@ from kinetic.db import get_engine
 from kinetic.directory.api import routes as directory_api
 from kinetic.directory.public import practice_facts
 from kinetic.identity.api import routes as identity_api
+from kinetic.records.api import routes as records_api
 
 # A plain HTML/JS page for trying the API by hand. Served from the same origin as
 # the API, so the browser needs no CORS setup.
@@ -27,6 +28,7 @@ def create_app() -> FastAPI:
     identity_api.install(app)
     directory_api.install(app)
     care_team_api.install(app)
+    records_api.install(app)
     access_api.install(app, team_facts=team_facts, practice_facts=practice_facts)
 
     @app.get("/health")

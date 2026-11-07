@@ -146,6 +146,21 @@ class TestDisciplineDecidesCategories:
         assert not care(TOM, Action.WRITE_NOTE, RecordCategory.CLINICAL_NOTE).allowed
 
 
+class TestViewingRecordsAtAll:
+    """VIEW_RECORD with no category: may this person see the client's records at all?"""
+
+    @pytest.mark.parametrize("who", [MAYA, TOM, MIA, SAM, ALI])
+    def test_the_client_members_and_covers_may(self, who):
+        assert care(who, Action.VIEW_RECORD).allowed
+
+    @pytest.mark.parametrize("who", [ADA, OLD, EVE])
+    def test_leads_former_members_and_strangers_may_not(self, who):
+        assert not care(who, Action.VIEW_RECORD).allowed
+
+    def test_writing_still_names_a_category(self):
+        assert not care(PIA, Action.WRITE_NOTE).allowed
+
+
 class TestCoverage:
     def test_the_cover_acts_as_the_covered_member_during_the_window(self):
         decision = care(SAM, Action.WRITE_NOTE, RecordCategory.CLINICAL_NOTE)
@@ -204,3 +219,16 @@ class TestAccessService:
     def test_an_unknown_client_is_denied(self):
         service = AccessService(self.Teams(), self.Practices(), FixedClock(NOW))
         assert not service.decide(MAYA, Action.VIEW_TEAM, TeamTarget(ClientId(uuid4()))).allowed
+
+    def test_decide_each_matches_one_decision_at_a_time(self):
+        service = AccessService(self.Teams(), self.Practices(), FixedClock(NOW))
+        targets = [RecordTarget(TEAM.client_id, category) for category in RecordCategory]
+        each = service.decide_each(MIA, Action.VIEW_RECORD, targets)
+        assert each == [service.decide(MIA, Action.VIEW_RECORD, t) for t in targets]
+        assert [t.category for t, d in zip(targets, each) if d.allowed] == [RecordCategory.SESSION_NOTE, RecordCategory.MASSAGE_PLAN]
+
+    def test_decide_each_takes_one_client(self):
+        service = AccessService(self.Teams(), self.Practices(), FixedClock(NOW))
+        mixed = [RecordTarget(TEAM.client_id), RecordTarget(ClientId(uuid4()))]
+        with pytest.raises(ValueError):
+            service.decide_each(MIA, Action.VIEW_RECORD, mixed)

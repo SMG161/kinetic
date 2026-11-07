@@ -26,7 +26,7 @@ We build five bounded contexts: `identity`, `directory`, `care_team` (the core),
 - **identity** (who someone is): Person, Account, Credential, Session. Hands everyone a `person_id` and nothing else.
 - **directory** (what someone is in the business): Organization, StaffMembership (owner, admin, front desk, practitioner), Provider (qualified disciplines; independent unless a practitioner somewhere), Client, Client Relationship (an org serving a client), Practice Lead (the org's face and accountable person for that client), Invitation (an org bringing someone in as staff, a practitioner or a client). One person can hold several personas, all pointing at one `person_id`.
 - **care_team** (the core): Care Team, Membership, Engagement, Coverage, Care Invitation (a solo provider inviting a client), Team Event. Supplies team facts to `access`.
-- **records** (thin): Clinical Record, Record Category, Author, Org Context. Asks `access` for every decision.
+- **records** (thin): Clinical Record, Record Category, Author. Append-only. Asks `access` for every decision.
 - **access** (who may do what): Principal, Action, Resource, Decision (allowed, with a reason), Policy. Knows the rules, not the data: facts arrive through ports the other contexts implement.
 
 The same word means different things per context, which is the reason the contexts are separate:
@@ -41,7 +41,7 @@ The same word means different things per context, which is the reason the contex
 - **identity → everyone:** upstream; publishes `person_id`, which others accept as-is.
 - **directory → care_team:** customer/supplier. `care_team` reads disciplines, practitioner memberships, client relationships and practice leads through its own `ProviderDirectory` port, an anti-corruption layer.
 - **access ↔ everyone:** `access` defines the ports it needs (`TeamFacts`, `PracticeFacts`); `care_team` and `directory` implement them, and the composition root (`main.py`) wires the implementations in. Every protected endpoint calls `access` through its public module. So contexts depend on `access`, and `access` depends on none of them: dependency inversion, not a module that knows everything.
-- **records → access:** records asks `access` for every read and write, passing the record's category, author and org context.
+- **records → access:** records asks `access` for every read and write, passing the record's category and author.
 - **care_team → scheduling/billing (stubs):** in-process domain events such as `CoverageScheduled`; billing asks `access` "can bill?".
 
 ```
@@ -317,7 +317,7 @@ This separates "see" from "act" naturally. The physio stepping back after rehab 
 
 ### Cross-organization rules
 
-- Memberships and records carry an `org_context_id` (null for an independent provider).
+- Memberships carry an `org_context_id` (null for an independent provider). Records do not yet: visibility is decided by discipline and engagement, so nothing would read it (see cuts).
 - An org admin sees team membership and records only within their own org's context, never the independent physio's notes.
 - A practice lead sees their org's slice of the team's membership and history. Being a lead grants no clinical record access; a lead who also treats the client gets that through their own membership.
 - The discipline that decides record categories is the membership's, i.e. what the provider practises for this client, not every discipline they are qualified in.
@@ -407,7 +407,7 @@ Three days, one commit per step. The care team domain is built and tested before
 - [x] `access` context: the policy (PDP) and its fact ports, unit-tested, no endpoints yet
 - [x] Commands: directory's public module, the `ProviderDirectory` port, care team service and endpoints behind the PEP, `as_of`, `/access/explain`
 - [x] Care invitations: a solo provider invites a client
-- [ ] Thin `records` context asking `access` for every decision
+- [x] Thin `records` context asking `access` for every decision
 
 ### Day 3: proof and writing
 
@@ -436,6 +436,7 @@ A strangler migration, no big-bang cutover:
 - A client requesting changes to an org's side of their team; today they can only discharge the org.
 - Coverage requests with a review step; the practice lead or solo provider schedules a cover directly.
 - Accepting a care invitation as a brand-new person; the client signs up first, then accepts signed in.
+- An org context on records. It would matter once an org's records should follow it out on discharge (an open question).
 - Guardians and proxies, and break-the-glass emergency access.
 - Email sending, rate limiting, refresh-token reuse detection (revoking the whole session when an old refresh token is replayed).
 - A real event bus; events are dispatched in-process.

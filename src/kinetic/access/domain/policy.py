@@ -151,7 +151,11 @@ def _by_tables(
         return Decision.deny(f"{membership.engagement} members cannot {action}")
     if action in {Action.VIEW_RECORD, Action.WRITE_NOTE}:
         if target.category is None:
-            return Decision.deny("name the record category")
+            if action is Action.WRITE_NOTE:
+                return Decision.deny("name the record category")
+            # Viewing with no category asks "may I see this client's records at all?":
+            # the list of records then checks each one by its category.
+            return Decision.allow(f"{how} may view records in their categories")
         if target.category not in CATEGORIES_BY_DISCIPLINE[membership.discipline]:
             return Decision.deny(f"{membership.discipline} cannot see {target.category}")
         if membership.engagement is Engagement.ALUMNI and target.author != principal:
