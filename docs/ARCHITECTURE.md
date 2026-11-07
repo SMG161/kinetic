@@ -42,7 +42,7 @@ The same word means different things per context, which is the reason the contex
 - **directory → care_team:** customer/supplier. `care_team` reads disciplines, practitioner memberships, client relationships and practice leads through its own `ProviderDirectory` port, an anti-corruption layer.
 - **access ↔ everyone:** `access` defines the ports it needs (`TeamFacts`, `PracticeFacts`); `care_team` and `directory` implement them, and the composition root (`main.py`) wires the implementations in. Every protected endpoint calls `access` through its public module. So contexts depend on `access`, and `access` depends on none of them: dependency inversion, not a module that knows everything.
 - **records → access:** records asks `access` for every read and write, passing the record's category and author.
-- **care_team → scheduling/billing (stubs):** in-process domain events such as `CoverageScheduled`; billing asks `access` "can bill?".
+- **care_team → scheduling/billing (stubs):** would consume team events such as a scheduled coverage (recorded today, not yet published); billing asks `access` "can bill?".
 
 ```
  identity (generic) ──person_id──▶ directory (supporting)
@@ -345,7 +345,7 @@ The domain is pure Python; SQLAlchemy lives only in each context's infrastructur
 
 ```
 src/kinetic/
-  shared_kernel/        # ids, Clock, TimeRange, DomainEvent
+  shared_kernel/        # ids, Clock, TimeRange
   identity/
     domain/  application/  infrastructure/  api/
   directory/
@@ -412,11 +412,11 @@ Three days, one commit per step. The care team domain is built and tested before
 
 ### Day 3: proof and writing
 
-- [ ] Scenario tests, one per brief bullet plus the extra cases found
+- [x] Scenario tests, one per brief bullet plus the extra cases found
 - [x] Seed script and demo page
 - [x] import-linter contract
-- [ ] README: overview, setup, architecture, 3–5 key decisions, cuts and next steps
-- [ ] Open questions and the migration write-up
+- [x] README: overview, setup, architecture, 3–5 key decisions, cuts and next steps
+- [x] Open questions and the migration write-up (both in the README)
 
 ## Migration, cuts and open questions
 
@@ -440,7 +440,7 @@ A strangler migration, no big-bang cutover:
 - An org context on records. It would matter once an org's records should follow it out on discharge (an open question).
 - Guardians and proxies, and break-the-glass emergency access.
 - Email sending, rate limiting, refresh-token reuse detection (revoking the whole session when an old refresh token is replayed).
-- A real event bus; events are dispatched in-process.
+- Publishing events: `TeamEvent`s are recorded, but nothing consumes them yet.
 - Credential verification: anyone can register as a provider with any discipline.
 
 ### Open questions (where the brief was silent)
