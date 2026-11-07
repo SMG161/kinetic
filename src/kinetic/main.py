@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from kinetic.access.api import routes as access_api
+from kinetic.care_team.api import routes as care_team_api
 from kinetic.care_team.public import team_facts
 from kinetic.db import get_engine
 from kinetic.directory.api import routes as directory_api
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Kinetic Care Team")
     identity_api.install(app)
     directory_api.install(app)
+    care_team_api.install(app)
     access_api.install(app, team_facts=team_facts, practice_facts=practice_facts)
 
     @app.get("/health")

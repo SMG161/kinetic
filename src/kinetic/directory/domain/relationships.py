@@ -9,7 +9,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from kinetic.directory.domain.errors import InvalidPracticeLead, InvalidReason
+from kinetic.directory.domain.errors import InvalidPracticeLead, InvalidReason, InvalidTiming
 from kinetic.directory.domain.model import Client, Organization
 from kinetic.shared_kernel import ClientId, OrganizationId, PersonId, TimeRange
 
@@ -63,6 +63,19 @@ class ClientRelationship:
         incoming = _assignment(org, client, new_lead, reason, at)  # validate before changing anything
         self.leads[self.leads.index(current)] = replace(current, period=current.period.close(at))
         self.leads.append(incoming)
+
+
+    def end(self, at: datetime) -> None:
+        """The org stops serving the client: the relationship and its current lead close at t.
+
+        Who may end it is decided by access (the client or the practice lead may discharge
+        an org), so this does not check the actor.
+        """
+        current = self.current_lead
+        if at <= current.period.start:
+            raise InvalidTiming("a relationship can only end after its current lead started")
+        self.leads[self.leads.index(current)] = replace(current, period=current.period.close(at))
+        self.period = self.period.close(at)
 
 
 def _assignment(org: Organization, client: Client, lead: PersonId, reason: str, at: datetime) -> PracticeLeadAssignment:

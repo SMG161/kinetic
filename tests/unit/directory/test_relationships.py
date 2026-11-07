@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from kinetic.directory.domain.errors import InvalidPracticeLead, InvalidReason, NotAnOrgManager
+from kinetic.directory.domain.errors import InvalidPracticeLead, InvalidReason, InvalidTiming, NotAnOrgManager
 from kinetic.directory.domain.model import Client, Organization, StaffRole
 from kinetic.directory.domain.relationships import ClientRelationship
 from kinetic.shared_kernel import new_person_id
@@ -91,3 +91,16 @@ class TestHandoff:
     def test_cannot_hand_off_at_or_before_the_current_lead_started(self, served, gym, maya):
         with pytest.raises(InvalidPracticeLead, match="after"):
             served.hand_off_lead(gym, OWNER, maya, ADMIN, "reason", T0)
+
+
+class TestEnd:
+    def test_the_relationship_and_its_lead_end_at_the_same_instant(self, served):
+        served.end(LATER)
+        assert served.period.end == LATER
+        assert served.leads[0].period.end == LATER
+        assert served.lead_at(LATER) is None  # nobody leads Maya there any more
+
+    def test_it_cannot_end_before_the_current_lead_started(self, served):
+        with pytest.raises(InvalidTiming):
+            served.end(T0)
+        assert served.period.is_open

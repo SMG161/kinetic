@@ -373,10 +373,10 @@ scripts/
 - `POST /orgs`, `POST /providers`
 - `POST /orgs/{id}/clients/{cid}/practice-lead` (hand the lead off), `GET /orgs/{id}/clients/{cid}` (the relationship and its lead history, for the org's staff)
 - `POST /care-invitations`, `POST /care-invitations/accept` (a solo provider invites a client)
-- `POST /care-teams/{id}/orgs/{org_id}/discharge`
-- `GET /care-teams/{id}` (filtered by viewer, optional `as_of`), `GET /care-teams/{id}/history`
-- `POST /care-teams/{id}/members`, `POST .../members/{mid}/engagement`, `POST .../members/{mid}/end`
-- `POST /care-teams/{id}/coverages`, `POST .../coverages/{cid}/end`
+- Care team, addressed by client (one team per client): `GET /clients/{cid}/care-team` (filtered by the viewer's scope, optional `as_of`), `GET .../care-team/history`
+- `POST .../care-team/members`, `POST .../members/{mid}/engagement`, `POST .../members/{mid}/end`
+- `POST .../members/{mid}/coverages`, `POST .../members/{mid}/coverages/{cov}/end`
+- `POST .../care-team/orgs/{org_id}/discharge` (also ends the org's client relationship, in the same transaction)
 - `GET /clients/{id}/records`, `POST /clients/{id}/records`
 - `GET /access/explain`
 
@@ -405,7 +405,7 @@ Three days, one commit per step. The care team domain is built and tested before
 - [x] CareTeam domain model and invariant unit tests, no database
 - [x] Persistence: exclusion constraints, optimistic locking, repositories
 - [x] `access` context: the policy (PDP) and its fact ports, unit-tested, no endpoints yet
-- [ ] Commands: directory's public module, the `ProviderDirectory` port, care team service and endpoints behind the PEP, `as_of`, `/access/explain`
+- [x] Commands: directory's public module, the `ProviderDirectory` port, care team service and endpoints behind the PEP, `as_of`, `/access/explain`
 - [ ] Care invitations: a solo provider invites a client
 - [ ] Thin `records` context asking `access` for every decision
 

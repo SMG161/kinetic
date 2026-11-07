@@ -44,5 +44,5 @@ class ClientRelationshipRepository(Protocol):
         """Every relationship the client has had, ended ones included."""
         ...
     def save(self, relationship: ClientRelationship) -> None:
-        """Persist closed lead periods and newly opened ones."""
+        """Persist closed lead periods, newly opened ones, and the relationship's end."""
         ...

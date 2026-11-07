@@ -50,6 +50,10 @@ class InvalidReason(DirectoryError):
     pass
 
 
+class InvalidTiming(DirectoryError):
+    """A change must come after what it changes."""
+
+
 class InvitationUnusable(DirectoryError):
     """Already accepted or expired."""
 

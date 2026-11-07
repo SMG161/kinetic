@@ -191,6 +191,9 @@ class SqlClientRelationshipRepository:
         )
 
     def save(self, relationship: ClientRelationship) -> None:
+        row = self._db.get(ClientRelationshipRow, relationship.id)
+        if row is not None:
+            row.valid_to = relationship.period.end  # set when the relationship ends
         for lead in relationship.leads:
             row = self._db.get(PracticeLeadAssignmentRow, lead.id)
             if row is None:
