@@ -10,7 +10,7 @@ We build a small, deep slice of Kinetic: working identity and auth, plus a clien
 
 ## Subdomains and bounded contexts
 
-We build four bounded contexts: `identity`, `directory`, `care_team` (the core) and `records`. Four more exist only on the map.
+We build five bounded contexts: `identity`, `directory`, `care_team` (the core), `records` and `access`. Four more exist only on the map.
 
 | Subdomain | Type | Context | Built? | Why |
 |---|---|---|---|---|
@@ -18,14 +18,16 @@ We build four bounded contexts: `identity`, `directory`, `care_team` (the core) 
 | Practice directory | Supporting | `directory` | Yes, thin | Orgs, staff, providers, clients. Needed, mostly CRUD with a few rules |
 | Clinical records | Supporting | `records` | Yes, minimal | Exists so "see vs act" can be exercised and tested |
 | Identity and authentication | Generic | `identity` | Yes, small | Every SaaS needs it; in production you would buy it |
+| Authorization | Generic | `access` | Yes, small | One decision point every context calls, so a new context adds rules, not a new mechanism; the engine behind it can be swapped |
 | Scheduling, Billing, Messaging, Documents/Wearables | Out of scope | none | No | Described in the README to justify the boundaries; they consume care_team events and decisions |
 
 ### Ubiquitous language per context
 
 - **identity** (who someone is): Person, Account, Credential, Session. Hands everyone a `person_id` and nothing else.
 - **directory** (what someone is in the business): Organization, StaffMembership (owner, admin, front desk, practitioner), Provider (qualified disciplines; independent unless a practitioner somewhere), Client, Client Relationship (an org serving a client), Practice Lead (the org's face and accountable person for that client), Invitation (an org bringing someone in as staff, a practitioner or a client). One person can hold several personas, all pointing at one `person_id`.
-- **care_team** (the core): Care Team, Membership, Engagement, Coverage, Care Invitation (a solo provider inviting a client), Team Event. Owns the `AccessPolicy`.
-- **records** (thin): Clinical Record, Record Category, Author, Org Context. Asks `care_team` for every access decision.
+- **care_team** (the core): Care Team, Membership, Engagement, Coverage, Care Invitation (a solo provider inviting a client), Team Event. Supplies team facts to `access`.
+- **records** (thin): Clinical Record, Record Category, Author, Org Context. Asks `access` for every decision.
+- **access** (who may do what): Principal, Action, Resource, Decision (allowed, with a reason), Policy. Knows the rules, not the data: facts arrive through ports the other contexts implement.
 
 The same word means different things per context, which is the reason the contexts are separate:
 
@@ -38,41 +40,46 @@ The same word means different things per context, which is the reason the contex
 
 - **identity → everyone:** upstream; publishes `person_id`, which others accept as-is.
 - **directory → care_team:** customer/supplier. `care_team` reads disciplines, practitioner memberships, client relationships and practice leads through its own `ProviderDirectory` port, an anti-corruption layer.
-- **care_team → records:** records conforms; it calls the `CareAccess` port and accepts the answer.
-- **care_team → scheduling/billing (stubs):** in-process domain events such as `CoverageScheduled`; billing asks "can bill?".
+- **access ↔ everyone:** `access` defines the ports it needs (`TeamFacts`, `PracticeFacts`); `care_team` and `directory` implement them, and the composition root (`main.py`) wires the implementations in. Every protected endpoint calls `access` through its public module. So contexts depend on `access`, and `access` depends on none of them: dependency inversion, not a module that knows everything.
+- **records → access:** records asks `access` for every read and write, passing the record's category, author and org context.
+- **care_team → scheduling/billing (stubs):** in-process domain events such as `CoverageScheduled`; billing asks `access` "can bill?".
 
 ```
  identity (generic) ──person_id──▶ directory (supporting)
         │                                │
         │                        ProviderDirectory port
         │                                ▼
-        └────────person_id────▶ care_team (core) ──CareAccess──▶ records (supporting)
-                                         ┊
-                                   domain events
-                                         ▼
+        ├────────person_id────▶ care_team (core)        records (supporting)
+        │                                │                      │
+        │                  TeamFacts / PracticeFacts        decide()
+        │                    (implemented here)                 │
+        │                                ▼                      ▼
+        └────────person_id────▶ access (generic): the policy decision point
+                                         ▲
+                                     decide()
                          ┌╌ Scheduling, Billing, Messaging (not built) ╌┐
 ```
 
 Arrows point downstream. The dashed box is described in the README only.
 
-Boundaries are enforced with one Postgres schema per context (no cross-schema foreign keys except to `identity.person`) and an **import-linter** contract: `care_team.domain` imports nothing outside itself and the shared kernel, and contexts import each other only through a public module.
+Boundaries are enforced with one Postgres schema per context (no cross-schema foreign keys except to `identity.person`) and an **import-linter** contract: `care_team.domain` and `access.domain` import nothing outside themselves and the shared kernel, `access` imports no other context, and contexts import each other only through a public module.
 
 ### Rejected boundaries
 
-- **A separate authorization context:** it would need facts from every context and become a module that knows everything. Access rules come from team facts, so they live in the core. Rejected for now, not forever: see "If authorization grows".
+- **Authorization inside the core** (our first design): simpler, but every new context (scheduling, billing) would have to depend on `care_team` to ask a question, and swapping in an engine would mean editing the core. We chose a separate `access` context instead. The usual objection, that it needs facts from everywhere and ends up knowing everything, is answered by ports: `access` declares the facts it needs and the owning contexts supply them.
 - **A separate consent context:** probably right in real healthcare; too much for three days. Listed as next.
 - **Merging directory into care_team:** org staff management and team coordination change for different reasons; merging leaks gym-admin concerns into the core.
 - **Episodes of care as a context:** more likely a future concept inside `care_team` that scopes memberships and records to one concern.
 
 ## Identity and authentication
 
-Authentication and identity stay in one context, `identity`, modelled as two aggregates. Authorization lives elsewhere, in `care_team`.
+Authentication and identity stay in one context, `identity`, modelled as two aggregates. Authorization lives elsewhere, in `access`.
 
 ### Authentication vs authorization
 
 - **Authentication** (are you who you say you are?) lives in `identity`. It covers credentials, login and sessions, and ends by producing a `person_id`.
-- **Authorization** (what may you do?) depends on team memberships, engagement, coverage windows and org staff roles. It lives in the `care_team` `AccessPolicy`, with `directory` supplying org-staff facts through a port.
-- The one exception is managing an org itself (who may invite staff, practitioners or clients, and hand off a practice lead). That is a rule about directory's own data, so it is an invariant of the `Organization` aggregate. Routing it through `AccessPolicy` would make `directory` depend on `care_team`, which already depends on `directory`: a cycle.
+- **Authorization** (what may you do?) depends on team memberships, engagement, coverage windows and org staff roles. It lives in `access`, with `care_team` and `directory` supplying those facts through its ports.
+- The one exception is managing an org itself (who may invite staff, practitioners or clients, and hand off a practice lead). That is a rule about directory's own data, so it stays an invariant of the `Organization` aggregate. With `access` separate it could move there without a cycle (directory would implement one more port); not done yet, listed as next.
 
 ### Person is not Account
 
@@ -259,7 +266,7 @@ Closed periods plus `TeamEvent` rows keep who was on the team, in what role, whe
 | A physio who is also a client | One person with a Client and a Provider profile. She may treat others but never join her own team (invariant 7) |
 | A gym trainer who is also a client of the same gym | The gym has a client relationship with her and a practitioner membership for her. Her own records are visible to her as the client, never through her trainer role |
 
-## Access policy
+## Access policy (the `access` context)
 
 Access combines two small tables instead of one permissions matrix: **discipline** decides which record categories a member can see, and **engagement** decides which actions they can take. Allowed means both say yes.
 
@@ -283,21 +290,27 @@ This separates "see" from "act" naturally. The physio stepping back after rehab 
 
 ### One decision point
 
-`AccessPolicy.decide(principal, action, resource, at) -> Decision(allowed, reason)` lives in `care_team`.
+`decide(principal, action, resource, at) -> Decision(allowed, reason)` lives in `access`, split the standard way:
 
-- Every endpoint calls it through a FastAPI dependency. `records` calls it through the `CareAccess` port. No other code decides access.
+| Part | What it is | Where |
+|---|---|---|
+| **PDP** (decision point) | The rules: who may manage a team (see "Commands and who may issue them"), engagement → actions, discipline → record categories, coverage windows | `access.domain`, pure Python |
+| **PIP** (information points) | Ports `access` defines for the facts it needs: `TeamFacts` (memberships, engagement, coverage), `PracticeFacts` (practice leads at an instant) | Implemented by `care_team` and `directory`, wired in `main.py` |
+| **PEP** (enforcement point) | A FastAPI dependency every protected endpoint goes through; a denial becomes 403 with the reason | `access.public` |
+
+- No other code decides access. A context may check its own aggregate's invariants, never who may see or act.
 - `at` comes from an injected `Clock`, so tests can move time ("day 15: the cover is denied").
 - Every decision carries a **reason**, such as "denied: coverage ended at 2026-11-17". An `/access/explain` endpoint shows it, which makes a strong walkthrough demo.
+- `access` stores nothing. Every decision is computed from current facts at request time, so a revoked membership or an ended coverage never leaves stale access behind.
+- `access` owns the policy; `care_team` owns the facts and what they mean (what an engagement is, when a coverage ends).
 
-### If authorization grows
+### Extending it
 
-Scheduling and billing would not need rules of their own: they ask the same policy ("can Pia bill for this session?", "can the front desk book Maya?"). We would extract authorization into its own context only when it outgrows care, for example per-tenant custom roles, consent, or many more resource types. Then:
-
-1. Move `decide()` into an `access` context. Callers do not change, because every one of them already goes through that single call.
-2. Contexts publish facts as events (membership added, engagement changed, coverage scheduled, staff added) and `access` keeps its own copy, so it imports no one. Revocations and time windows are still checked at request time, so stale copies never grant access.
-3. Prefer an off-the-shelf engine (OpenFGA, SpiceDB, Cedar) over a hand-written one: care teams are naturally a graph of relationships.
-4. The access team owns the engine and the audit log; domain teams still own what their rules mean.
-5. Migrate in shadow mode: log every decision where old and new disagree, then switch behind a flag.
+- **A new context** (scheduling, billing): add its actions to the policy and call the same PEP. No other context changes.
+- **A new kind of fact:** add a port to `access`; the owning context implements it.
+- **An off-the-shelf engine** (OpenFGA, SpiceDB, Cedar) when the rules outgrow code, e.g. per-tenant custom roles or consent: replace the PDP's insides behind `decide()`. Callers and ports stay as they are; care teams are naturally a graph of relationships, which these engines model well.
+- **Contexts as separate services:** facts would arrive as events (membership added, coverage scheduled) and `access` would keep its own copy. Time windows are still checked at request time, so a stale copy never grants access.
+- **Migrating any of these:** run old and new side by side in shadow mode, log every disagreement, then switch behind a flag.
 
 ### Cross-organization rules
 
@@ -311,7 +324,7 @@ Scheduling and billing would not need rules of their own: they ask the same poli
 
 The principal is resolved from the session token to `person_id`, then to personas: client profile, provider profile, staff memberships. A person can act as client of their own team and as provider on someone else's. Nothing about who someone is or what they may do comes from the request body.
 
-There is no "switch persona" step. `AccessPolicy` looks at every persona the principal holds and asks which of them relates to the resource: on Maya's own team she is the client; on another client's team she is that team's trainer and only trainer rules apply. The resource decides which relationship counts, never a role the caller picks.
+There is no "switch persona" step. The policy looks at every persona the principal holds and asks which of them relates to the resource: on Maya's own team she is the client; on another client's team she is that team's trainer and only trainer rules apply. The resource decides which relationship counts, never a role the caller picks.
 
 ## Stack, persistence, layout and testing
 
@@ -321,7 +334,7 @@ The domain is pure Python; SQLAlchemy lives only in each context's infrastructur
 
 - **SQLAlchemy 2.0, mapped by repositories.** Domain classes are plain dataclasses; repositories map to and from ORM table models. **Rejected:** ORM models as domain models, which is faster but leaks persistence into the domain.
 - **Alembic** for migrations, including the `btree_gist` extension and exclusion constraints.
-- **One Postgres schema per context** (`identity`, `directory`, `care_team`, `records`).
+- **One Postgres schema per context** (`identity`, `directory`, `care_team`, `records`). `access` stores nothing, so it has none.
 - **Postgres-specific features used on purpose:** `tstzrange`, exclusion constraints and a `version` column for optimistic locking.
 - **Tooling:** uv for packages, docker compose for Postgres, plain commands (listed in the README) for migrate, seed, demo and test.
 
@@ -336,10 +349,13 @@ src/kinetic/
     domain/  application/  infrastructure/  api/
   care_team/
     domain/  application/  infrastructure/  api/
-    access/             # AccessPolicy, capability tables
   records/
     domain/  application/  infrastructure/  api/
-  main.py
+  access/
+    domain/             # the PDP: rules, Decision, fact ports
+    application/  api/  # gathers facts, the PEP dependency, /access/explain
+    public.py           # no infrastructure: facts come through ports others implement
+  main.py               # composition root: wires the fact adapters into access
 tests/
   unit/                 # pure domain, no database
   scenarios/            # one test per brief scenario, real Postgres
@@ -385,9 +401,10 @@ Three days, one commit per step. The care team domain is built and tested before
 - [x] Directory revision: invitations are the only way into an org; signup as a provider
 - [x] CareTeam domain model and invariant unit tests, no database
 - [x] Persistence: exclusion constraints, optimistic locking, repositories
-- [ ] Commands: add member, change engagement, end membership, coverage, discharge organization, care invitations
-- [ ] `AccessPolicy` and `/access/explain`
-- [ ] Thin `records` context calling the policy through its port
+- [ ] `access` context: the policy (PDP) and its fact ports, unit-tested, no endpoints yet
+- [ ] Commands: directory's public module, the `ProviderDirectory` port, care team service and endpoints behind the PEP, `as_of`, `/access/explain`
+- [ ] Care invitations: a solo provider invites a client
+- [ ] Thin `records` context asking `access` for every decision
 
 ### Day 3: proof and writing
 
@@ -405,7 +422,7 @@ A strangler migration, no big-bang cutover:
 
 1. Backfill each legacy `client.provider_id` as a one-member care team: a membership in the provider's org context, or a solo one.
 2. Translate legacy writes to `provider_id` into end-membership and add-member commands at the same instant (dual-write).
-3. Run the new `AccessPolicy` in shadow mode and log every decision that disagrees with the old check.
+3. Run the new `access` policy in shadow mode and log every decision that disagrees with the old check.
 4. Switch reads to the new policy behind a flag, then drop the legacy column.
 
 ### What we cut

@@ -10,12 +10,12 @@ The design is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Read it before ch
 
 ## Boundaries
 
-- Four bounded contexts under `src/kinetic/`: `identity`, `directory`, `care_team` (core), `records`.
-- Each context has `domain/`, `application/`, `infrastructure/`, `api/`.
+- Five bounded contexts under `src/kinetic/`: `identity`, `directory`, `care_team` (core), `records`, `access` (the policy decision point).
+- Each context has `domain/`, `application/`, `infrastructure/`, `api/`. `access` has no `infrastructure/`: its facts come through ports other contexts implement.
 - `domain/` is pure Python (dataclasses). No SQLAlchemy, FastAPI or Pydantic there.
 - Contexts talk only through ports or each other's public module, never by reaching into internals.
 - `shared_kernel/` holds only ids, `Clock`, `TimeRange`, `DomainEvent`.
-- Only `care_team.access.AccessPolicy` decides access. Nothing else re-derives policy.
+- Only `access` decides access. Other contexts supply facts through its ports and call it through `access.public`; `access` imports no other context. Nothing else re-derives policy.
 
 ## Commands
 
