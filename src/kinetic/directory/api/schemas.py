@@ -10,7 +10,7 @@ from kinetic.directory.application.services import Personas, StaffPersona
 from kinetic.directory.domain.invitations import Invitation, InvitationKind
 from kinetic.directory.domain.model import Discipline, Organization, Provider, StaffMembership, StaffRole
 from kinetic.directory.domain.relationships import ClientRelationship, PracticeLeadAssignment
-from kinetic.identity.public import MAX_PASSWORD_LENGTH, Person, TokenResponse
+from kinetic.identity.public import MAX_PASSWORD_LENGTH, Person, SignupRequest, TokenResponse
 
 
 class _Strict(BaseModel):
@@ -68,24 +68,20 @@ class AcceptedInvitationResponse(BaseModel):
     tokens: TokenResponse | None = Field(description="Set when a new account was created, so you are signed in")
 
 
+class SignupBody(SignupRequest):
+    """Identity's signup fields plus one directory field. Identity never learns what a discipline is."""
+
+    qualifications: list[Discipline] = Field(
+        default_factory=list, description="Sign up as a provider in these disciplines; empty means a client"
+    )
+
+
 class CreateOrganizationRequest(BaseModel):
     name: str
 
 
-class AddStaffRequest(BaseModel):
-    email: str
-    role: StaffRole
-    disciplines: list[Discipline] = Field(default_factory=list, description="Practitioners only")
-
-
 class RegisterProviderRequest(BaseModel):
     qualifications: list[Discipline]
-
-
-class StartRelationshipRequest(BaseModel):
-    client_email: str
-    practice_lead_email: str
-    reason: str
 
 
 class HandOffPracticeLeadRequest(BaseModel):

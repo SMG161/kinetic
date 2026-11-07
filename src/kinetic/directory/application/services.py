@@ -3,8 +3,8 @@
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from kinetic.directory.domain.errors import AlreadyRegistered, AlreadyServed, InvalidStaffRole, NotFound
-from kinetic.directory.domain.model import Client, Discipline, Organization, Provider, StaffMembership, StaffRole
+from kinetic.directory.domain.errors import AlreadyRegistered, NotFound
+from kinetic.directory.domain.model import Client, Discipline, Organization, Provider, StaffMembership
 from kinetic.directory.domain.ports import People
 from kinetic.directory.domain.relationships import ClientRelationship
 from kinetic.directory.domain.repositories import (
@@ -64,44 +64,6 @@ class DirectoryService:
         org = Organization.found(name, founder, self._clock.now())
         self._organizations.add(org)
         return org
-
-    def add_staff(
-        self,
-        actor: PersonId,
-        org_id: OrganizationId,
-        email: str,
-        role: StaffRole,
-        disciplines: Iterable[Discipline],
-    ) -> StaffMembership:
-        org = self._managed_organization(actor, org_id)
-        person_id = self._person_by_email(email)
-        at = self._clock.now()
-        disciplines = list(disciplines)
-        if role is StaffRole.PRACTITIONER:
-            provider = self._providers.get_by_person(person_id)
-            if provider is None:
-                raise NotFound("that person has no provider profile")
-            membership = org.add_practitioner(actor, provider, disciplines, at)
-        elif disciplines:
-            raise InvalidStaffRole("only practitioners practise disciplines")
-        else:
-            membership = org.add_staff(actor, person_id, role, at)
-        self._organizations.save(org)
-        return membership
-
-    def start_relationship(
-        self, actor: PersonId, org_id: OrganizationId, client_email: str, lead_email: str, reason: str
-    ) -> ClientRelationship:
-        org = self._managed_organization(actor, org_id)
-        client = self._clients.get_by_person(self._person_by_email(client_email))
-        if client is None:
-            raise NotFound("that person is not a client")
-        lead = self._person_by_email(lead_email)
-        if self._relationships.get_active(org.id, client.id) is not None:
-            raise AlreadyServed("this organization already serves this client")
-        relationship = ClientRelationship.start(org, actor, client, lead, reason, self._clock.now())
-        self._relationships.add(relationship)
-        return relationship
 
     def hand_off_practice_lead(
         self, actor: PersonId, org_id: OrganizationId, client_id: ClientId, lead_email: str, reason: str

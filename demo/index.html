@@ -34,11 +34,14 @@
           <input name="password" type="password" placeholder="password" required>
           <button>Log in</button>
         </form>
-        <form id="signup-form" class="row">
-          <input name="full_name" placeholder="full name" required>
-          <input name="email" type="email" placeholder="email" required>
-          <input name="password" type="password" placeholder="password (8+)" required>
-          <button>Sign up as client</button>
+        <form id="signup-form">
+          <div class="row">
+            <input name="full_name" placeholder="full name" required>
+            <input name="email" type="email" placeholder="email" required>
+            <input name="password" type="password" placeholder="password (8+)" required>
+          </div>
+          <div class="disciplines" data-name="qualifications">Tick to sign up as a provider (not a client):</div>
+          <button>Sign up</button>
         </form>
         <div class="row">
           <button type="button" data-check="me">GET /me</button>
@@ -54,23 +57,14 @@
       </section>
 
       <section class="card">
-        <h2>4. Organizations and staff</h2>
+        <h2>4. Organizations and providers</h2>
+        <p class="muted">Nobody is added directly: staff, practitioners and clients join by accepting an invitation (section 6).</p>
         <label>Organization
           <select id="org"></select>
         </label>
         <form id="org-form" class="row">
           <input name="name" placeholder="new organization name" required>
           <button>Found organization</button>
-        </form>
-        <form id="staff-form">
-          <div class="row">
-            <input name="email" type="email" placeholder="staff email" required>
-            <select name="role">
-              <option>ADMIN</option><option>FRONT_DESK</option><option>PRACTITIONER</option><option>OWNER</option>
-            </select>
-          </div>
-          <div class="disciplines" data-name="disciplines">Disciplines (practitioners only):</div>
-          <button>Add staff to organization</button>
         </form>
         <form id="provider-form">
           <div class="disciplines" data-name="qualifications">Your qualifications:</div>
@@ -80,13 +74,7 @@
 
       <section class="card">
         <h2>5. Client relationships and practice leads</h2>
-        <p class="muted">Uses the organization picked above.</p>
-        <form id="relationship-form" class="row">
-          <input name="client_email" type="email" placeholder="client email" required>
-          <input name="practice_lead_email" type="email" placeholder="practice lead email" required>
-          <input name="reason" placeholder="reason" required>
-          <button>Start relationship</button>
-        </form>
+        <p class="muted">Uses the organization picked above. A relationship starts when a client accepts a CLIENT invitation.</p>
         <label>Client id
           <input id="client-id" list="client-ids" placeholder="client id">
           <datalist id="client-ids"></datalist>
@@ -110,7 +98,7 @@
             <input name="email" type="email" placeholder="invitee email" required>
           </div>
           <div class="row" data-kind="STAFF">
-            <select name="role"><option>ADMIN</option><option>FRONT_DESK</option></select>
+            <select name="role"><option>ADMIN</option><option>FRONT_DESK</option><option>OWNER</option></select>
           </div>
           <div class="disciplines" data-kind="PRACTITIONER" data-name="disciplines">Disciplines:</div>
           <div class="row" data-kind="CLIENT">

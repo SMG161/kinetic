@@ -1,7 +1,8 @@
 """Invitation use cases: an org invites someone; they accept, signed in or as a new person.
 
-Accepting applies the same domain methods as doing it directly, acting as the
-inviter, so no rule is duplicated and the inviter's authority is re-checked.
+Invitations are the only way into an org, so every member has consented. Accepting
+applies the org's domain methods acting as the inviter, so the inviter's authority is
+re-checked.
 Everything runs in the request's one transaction: if any rule fails, nothing is
 kept and the invitation stays pending.
 """

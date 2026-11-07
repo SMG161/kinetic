@@ -1,7 +1,7 @@
 """Build the directory services per request.
 
 FastAPI caches dependencies within a request, so these share get_db's session with
-identity: signup creates the person, account and client profile in one transaction.
+identity: signup creates the person, account and profile in one transaction.
 """
 
 from typing import Annotated

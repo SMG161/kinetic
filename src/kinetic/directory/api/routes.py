@@ -13,7 +13,6 @@ from kinetic.directory.api.dependencies import DirectoryServiceDep, InvitationSe
 from kinetic.directory.api.schemas import (
     AcceptedInvitationResponse,
     AcceptInvitationRequest,
-    AddStaffRequest,
     ClientInvitationRequest,
     ClientRelationshipResponse,
     CreateOrganizationRequest,
@@ -26,8 +25,7 @@ from kinetic.directory.api.schemas import (
     OrganizationResponse,
     ProviderResponse,
     RegisterProviderRequest,
-    StaffMembershipResponse,
-    StartRelationshipRequest,
+    SignupBody,
 )
 from kinetic.directory.domain.errors import (
     AlreadyRegistered,
@@ -49,7 +47,6 @@ from kinetic.directory.domain.errors import (
 )
 from kinetic.identity.public import (
     IdentityServiceDep,
-    SignupRequest,
     TokenResponse,
     current_person_id,
     optional_current_person_id,
@@ -62,10 +59,14 @@ OptionalPerson = Annotated[PersonId | None, Depends(optional_current_person_id)]
 
 
 @router.post("/auth/signup", status_code=201)
-def signup(body: SignupRequest, identity: IdentityServiceDep, directory: DirectoryServiceDep) -> TokenResponse:
-    """Client self-signup: person, account and client profile, in one transaction."""
+def signup(body: SignupBody, identity: IdentityServiceDep, directory: DirectoryServiceDep) -> TokenResponse:
+    """Self-signup, in one transaction: a person and account, plus a client profile, or a
+    provider profile instead when qualifications are given."""
     pair = identity.signup(body.full_name, body.email, body.password)
-    directory.register_client(pair.person_id)
+    if body.qualifications:
+        directory.register_provider(pair.person_id, body.qualifications)
+    else:
+        directory.register_client(pair.person_id)
     return TokenResponse.from_pair(pair)
 
 
@@ -81,29 +82,11 @@ def create_organization(
     return OrganizationResponse.from_organization(directory.found_organization(person_id, body.name))
 
 
-@router.post("/orgs/{org_id}/staff", status_code=201)
-def add_staff(
-    org_id: UUID, body: AddStaffRequest, person_id: CurrentPerson, directory: DirectoryServiceDep
-) -> StaffMembershipResponse:
-    membership = directory.add_staff(person_id, OrganizationId(org_id), body.email, body.role, body.disciplines)
-    return StaffMembershipResponse.from_membership(membership)
-
-
 @router.post("/providers", status_code=201)
 def register_provider(
     body: RegisterProviderRequest, person_id: CurrentPerson, directory: DirectoryServiceDep
 ) -> ProviderResponse:
     return ProviderResponse.from_provider(directory.register_provider(person_id, body.qualifications))
-
-
-@router.post("/orgs/{org_id}/clients", status_code=201)
-def start_relationship(
-    org_id: UUID, body: StartRelationshipRequest, person_id: CurrentPerson, directory: DirectoryServiceDep
-) -> ClientRelationshipResponse:
-    relationship = directory.start_relationship(
-        person_id, OrganizationId(org_id), body.client_email, body.practice_lead_email, body.reason
-    )
-    return ClientRelationshipResponse.from_relationship(relationship)
 
 
 @router.post("/orgs/{org_id}/clients/{client_id}/practice-lead")

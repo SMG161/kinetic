@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from kinetic.shared_kernel import FixedClock
-from tests.scenarios.helpers import PASSWORD, bearer, login, signup
+from tests.scenarios.helpers import PASSWORD, bearer, invite, login, signup
 
 
 @pytest.fixture
@@ -18,12 +18,6 @@ def owner(client: TestClient) -> dict:
 @pytest.fixture
 def gym(client: TestClient, owner: dict) -> dict:
     return client.post("/orgs", json={"name": "IronWorks Gym"}, headers=owner).json()
-
-
-def invite(client: TestClient, gym: dict, headers: dict, **body) -> dict:
-    response = client.post(f"/orgs/{gym['id']}/invitations", json=body, headers=headers)
-    assert response.status_code == 201, response.text
-    return response.json()
 
 
 def accept_as_new(client: TestClient, token: str, name: str = "New Person", password: str = PASSWORD) -> object:

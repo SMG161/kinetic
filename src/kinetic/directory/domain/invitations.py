@@ -1,8 +1,8 @@
-"""Invitations: an org bringing someone in as staff, a practitioner or a client.
+"""Invitations: the only way an org brings someone in as staff, a practitioner or a client.
 
 The token is a secret shown once; only its SHA-256 hash is stored. Accepting applies
-the same domain rules as doing it directly (add_staff, add_practitioner, start a
-relationship), acting as the inviter, so the inviter's authority is checked again then.
+the org's domain rules (add_staff, add_practitioner, start a relationship), acting as
+the inviter, so the inviter's authority is checked again then.
 """
 
 import hashlib

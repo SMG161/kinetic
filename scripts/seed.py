@@ -40,8 +40,10 @@ def bearer(tokens: dict) -> dict:
     return {"Authorization": f"Bearer {tokens['access_token']}"}
 
 
-def signup(api: TestClient, name: str, email: str, summary: str) -> dict:
-    tokens = call(api, "POST", "/auth/signup", 201, full_name=name, email=email, password=DEMO_PASSWORD)
+def signup(api: TestClient, name: str, email: str, summary: str, qualifications: tuple[str, ...] = ()) -> dict:
+    """Self-signup: a client, or a provider (and not a client) when qualifications are given."""
+    tokens = call(api, "POST", "/auth/signup", 201, full_name=name, email=email, password=DEMO_PASSWORD,
+                  qualifications=list(qualifications))
     accounts.append({"name": name, "email": email, "summary": summary})
     return bearer(tokens)
 
@@ -71,24 +73,23 @@ def empty_database() -> None:
 
 
 def seed(api: TestClient) -> dict:
-    # Self-signup: each of these becomes a client, and some also register as providers.
+    # Self-signup as clients.
     maya = signup(api, "Maya Patel", "maya@example.com", "Client. Served by IronWorks Gym and City Sports Clinic")
     olga = signup(api, "Olga Owner", "olga@ironworks.example", "Owner of IronWorks Gym")
-    chen = signup(api, "Dr Chen Wu", "chen@citysports.example", "Owner of City Sports Clinic who also treats (physician)")
-    pia = signup(api, "Pia Physio", "pia@example.com", "Independent physio, also a client; has a pending clinic invitation")
-    sam = signup(api, "Sam Cover", "sam@example.com", "Independent physio (Pia's covering colleague later)")
-    mia = signup(api, "Mia Massage", "mia@example.com", "Independent massage therapist")
-
-    call(api, "POST", "/providers", 201, headers=chen, qualifications=["PHYSICIAN"])
+    pia = signup(api, "Pia Physio", "pia@example.com", "Client who registered as a physio; has a pending clinic invitation")
     call(api, "POST", "/providers", 201, headers=pia, qualifications=["PHYSIO"])
-    call(api, "POST", "/providers", 201, headers=sam, qualifications=["PHYSIO"])
-    call(api, "POST", "/providers", 201, headers=mia, qualifications=["MASSAGE"])
 
-    # Two organizations; the clinic owner also practises there.
+    # Self-signup as providers: not clients.
+    chen = signup(api, "Dr Chen Wu", "chen@citysports.example", "Physician who founded City Sports Clinic and treats there",
+                  ("PHYSICIAN",))
+    signup(api, "Sam Cover", "sam@example.com", "Solo physio (Pia's covering colleague later)", ("PHYSIO",))
+    signup(api, "Mia Massage", "mia@example.com", "Solo massage therapist", ("MASSAGE",))
+
+    # Two organizations. The clinic owner also practises there: he invites himself and accepts.
     gym = call(api, "POST", "/orgs", 201, headers=olga, name="IronWorks Gym")["id"]
     clinic = call(api, "POST", "/orgs", 201, headers=chen, name="City Sports Clinic")["id"]
-    call(api, "POST", f"/orgs/{clinic}/staff", 201, headers=chen,
-         email="chen@citysports.example", role="PRACTITIONER", disciplines=["PHYSICIAN"])
+    token = invite(api, clinic, chen, kind="PRACTITIONER", email="chen@citysports.example", disciplines=["PHYSICIAN"])
+    call(api, "POST", "/invitations/accept", 200, headers=chen, token=token)
 
     # Staff and a practitioner join IronWorks through invitations, as new people.
     token = invite(api, gym, olga, kind="STAFF", email="ada@ironworks.example", role="ADMIN")
@@ -108,9 +109,10 @@ def seed(api: TestClient) -> dict:
     call(api, "POST", f"/orgs/{gym}/clients/{maya_client_id}/practice-lead", 200, headers=ada,
          practice_lead_email="ada@ironworks.example", reason="Dee is on leave for two weeks")
 
-    # The clinic also serves Maya, started directly (the walk-in path).
-    call(api, "POST", f"/orgs/{clinic}/clients", 201, headers=chen, client_email="maya@example.com",
-         practice_lead_email="chen@citysports.example", reason="Sports physician for Maya's shoulder")
+    # The clinic also serves Maya, again through an invitation she accepts.
+    token = invite(api, clinic, chen, kind="CLIENT", email="maya@example.com",
+                   practice_lead_email="chen@citysports.example", reason="Sports physician for Maya's shoulder")
+    call(api, "POST", "/invitations/accept", 200, headers=maya, token=token)
 
     # Left pending so they can be accepted from the demo page.
     pending = [

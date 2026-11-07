@@ -20,3 +20,15 @@ def login(client: TestClient, email: str, password: str = PASSWORD) -> dict:
 
 def bearer(tokens: dict) -> dict:
     return {"Authorization": f"Bearer {tokens['access_token']}"}
+
+
+def invite(client: TestClient, org: dict, headers: dict, **body) -> dict:
+    """Send an org invitation; invitations are the only way into an org."""
+    response = client.post(f"/orgs/{org['id']}/invitations", json=body, headers=headers)
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+def accept(client: TestClient, token: str, headers: dict) -> object:
+    """Accept an invitation as the signed-in person."""
+    return client.post("/invitations/accept", json={"token": token}, headers=headers)

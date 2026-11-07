@@ -144,7 +144,9 @@ const clientId = () => $("#client-id").value.trim();
 onSubmit("#login-form", (form) => signIn(form.email.value, form.password.value));
 
 onSubmit("#signup-form", async (form) => {
-  const { ok, data } = await api("POST", "/auth/signup", fields(form), { auth: false });
+  const { full_name, email, password } = fields(form);
+  const body = { full_name, email, password, qualifications: checked(form, "qualifications") };
+  const { ok, data } = await api("POST", "/auth/signup", body, { auth: false });
   if (ok) setTokens(data);
 });
 
@@ -153,20 +155,9 @@ onSubmit("#org-form", async (form) => {
   if (ok) { state.orgs[data.name] = data.id; renderOrgs(); $("#org").value = data.id; loadMe(); }
 });
 
-onSubmit("#staff-form", async (form) => {
-  const { email, role } = fields(form);
-  const { ok } = await api("POST", `/orgs/${orgId()}/staff`, { email, role, disciplines: checked(form, "disciplines") });
-  if (ok) loadMe();
-});
-
 onSubmit("#provider-form", async (form) => {
   const { ok } = await api("POST", "/providers", { qualifications: checked(form, "qualifications") });
   if (ok) loadMe();
-});
-
-onSubmit("#relationship-form", async (form) => {
-  const { ok, data } = await api("POST", `/orgs/${orgId()}/clients`, fields(form));
-  if (ok) { $("#client-id").value = data.client_id; renderRelationship(data); }
 });
 
 onSubmit("#handoff-form", async (form) => {

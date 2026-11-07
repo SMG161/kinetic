@@ -382,7 +382,7 @@ Three days, one commit per step. The care team domain is built and tested before
 
 ### Day 2: the core
 
-- [ ] Directory revision: invitations are the only way into an org; signup as a provider
+- [x] Directory revision: invitations are the only way into an org; signup as a provider
 - [ ] CareTeam domain model and invariant unit tests, no database
 - [ ] Persistence: exclusion constraints, optimistic locking, repositories
 - [ ] Commands: add member, change engagement, end membership, coverage, discharge organization, care invitations
