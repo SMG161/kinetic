@@ -36,3 +36,11 @@ class InvalidTiming(CareTeamError):
 
 class InvalidCoverage(CareTeamError):
     pass
+
+
+class TeamAlreadyExists(CareTeamError):
+    """One care team per client: another request created this client's team first."""
+
+
+class ConcurrentChange(CareTeamError):
+    """Someone else changed the team since it was loaded. Reload and try again."""

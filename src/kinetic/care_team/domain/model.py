@@ -79,6 +79,7 @@ class Coverage:
 class TeamEvent:
     """Who did what to the team, when and why. subject_id is the membership, coverage or org."""
 
+    id: UUID
     type: TeamEventType
     actor: PersonId
     reason: str
@@ -88,13 +89,17 @@ class TeamEvent:
 
 @dataclass
 class CareTeam:
-    """Aggregate root, one per client. Small enough to load whole."""
+    """Aggregate root, one per client. Small enough to load whole.
+
+    version counts saved changes; the repository refuses a save from a stale copy.
+    """
 
     id: UUID
     client_id: ClientId
     memberships: list[Membership]
     coverages: list[Coverage]
     events: list[TeamEvent]
+    version: int = 0
 
     @classmethod
     def for_client(cls, client: ClientFacts) -> "CareTeam":
@@ -237,7 +242,7 @@ class CareTeam:
             self._record(TeamEventType.COVERAGE_ENDED, actor, reason, at, coverage.id)
 
     def _record(self, type: TeamEventType, actor: PersonId, reason: str, at: datetime, subject_id: UUID) -> None:
-        self.events.append(TeamEvent(type, actor, reason, at, subject_id))
+        self.events.append(TeamEvent(uuid4(), type, actor, reason, at, subject_id))
 
 
 def _check_org_context(
