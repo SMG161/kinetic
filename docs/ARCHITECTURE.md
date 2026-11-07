@@ -117,7 +117,7 @@ We would split them if authentication moved to a vendor (Auth0, Cognito, an org'
   - Signed in, you accept as yourself and your email must match. Not signed in, you give a name and password and an account is created for the invited email.
   - The token travels in the request body, never the URL, so it stays out of logs, browser history and `Referer` headers.
   - Invited staff and practitioners do not become clients; only a client invitation creates a Client profile, and accepting it is the client's consent to the relationship.
-- **Care invitations** live in `care_team`: a solo provider invites a client, and accepting adds the provider to the client's care team with no org context. Any provider can send one, including one who also works at an org. To hire people, a provider founds an org and invites them.
+- **Care invitations** live in `care_team`: a solo provider invites a client, and accepting adds the provider to the client's care team with no org context. Any provider can send one, in a discipline they are qualified in, including one who also works at an org. The client accepts signed in, and access allows only the client to accept (`ACCEPT_CARE_INVITATION`): that acceptance is their consent. The token rules match org invitations (hashed, 7 days, once, for the invited email). To hire people, a provider founds an org and invites them.
 - Email sending is stubbed: the token is returned in the API response and the README says so.
 
 ## The practice directory
@@ -406,7 +406,7 @@ Three days, one commit per step. The care team domain is built and tested before
 - [x] Persistence: exclusion constraints, optimistic locking, repositories
 - [x] `access` context: the policy (PDP) and its fact ports, unit-tested, no endpoints yet
 - [x] Commands: directory's public module, the `ProviderDirectory` port, care team service and endpoints behind the PEP, `as_of`, `/access/explain`
-- [ ] Care invitations: a solo provider invites a client
+- [x] Care invitations: a solo provider invites a client
 - [ ] Thin `records` context asking `access` for every decision
 
 ### Day 3: proof and writing
@@ -435,6 +435,7 @@ A strangler migration, no big-bang cutover:
 - A full consent workflow and client-specific access overrides.
 - A client requesting changes to an org's side of their team; today they can only discharge the org.
 - Coverage requests with a review step; the practice lead or solo provider schedules a cover directly.
+- Accepting a care invitation as a brand-new person; the client signs up first, then accepts signed in.
 - Guardians and proxies, and break-the-glass emergency access.
 - Email sending, rate limiting, refresh-token reuse detection (revoking the whole session when an old refresh token is replayed).
 - A real event bus; events are dispatched in-process.

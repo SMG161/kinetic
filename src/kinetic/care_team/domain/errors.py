@@ -44,3 +44,19 @@ class TeamAlreadyExists(CareTeamError):
 
 class ConcurrentChange(CareTeamError):
     """Someone else changed the team since it was loaded. Reload and try again."""
+
+
+class NotAProvider(CareTeamError):
+    """Only providers send care invitations."""
+
+
+class NotAClient(CareTeamError):
+    """Only a client can accept a care invitation; signing up makes you one."""
+
+
+class InvitationUnusable(CareTeamError):
+    """Already accepted or expired."""
+
+
+class InvitationNotForYou(CareTeamError):
+    """The signed-in person's email is not the one the invitation was sent to."""

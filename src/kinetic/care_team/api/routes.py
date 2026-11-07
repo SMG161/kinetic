@@ -12,9 +12,12 @@ from fastapi.responses import JSONResponse
 from pydantic import AwareDatetime
 
 from kinetic.access.public import AccessServiceDep, Action, TeamTarget, authorize
-from kinetic.care_team.api.dependencies import CareTeamServiceDep
+from kinetic.care_team.api.dependencies import CareInvitationServiceDep, CareTeamServiceDep
 from kinetic.care_team.api.schemas import (
+    AcceptCareInvitationRequest,
     AddMemberRequest,
+    CareInvitationRequest,
+    CareInvitationResponse,
     ChangeEngagementRequest,
     CoverageResponse,
     HistoryResponse,
@@ -32,6 +35,10 @@ from kinetic.care_team.domain.errors import (
     InvalidOrgContext,
     InvalidReason,
     InvalidTiming,
+    InvitationNotForYou,
+    InvitationUnusable,
+    NotAClient,
+    NotAProvider,
     NotFound,
     NotQualified,
     SelfTreatment,
@@ -41,6 +48,7 @@ from kinetic.identity.public import current_person_id
 from kinetic.shared_kernel import ClientId, OrganizationId, PersonId
 
 router = APIRouter(prefix="/clients/{client_id}/care-team", tags=["care team"])
+invitations = APIRouter(prefix="/care-invitations", tags=["care team"])
 CurrentPerson = Annotated[PersonId, Depends(current_person_id)]
 
 
@@ -135,6 +143,22 @@ def discharge_organization(
     care.discharge_organization(me, ClientId(client_id), OrganizationId(org_id), body.reason)
 
 
+@invitations.post("", status_code=201)
+def invite_client(body: CareInvitationRequest, me: CurrentPerson, care: CareInvitationServiceDep) -> CareInvitationResponse:
+    """A provider invites a client to add them to the client's team as a solo member."""
+    return CareInvitationResponse.of(*care.invite(me, body.client_email, body.discipline, body.reason))
+
+
+@invitations.post("/accept")
+def accept_invitation(
+    body: AcceptCareInvitationRequest, me: CurrentPerson, access: AccessServiceDep, care: CareInvitationServiceDep
+) -> MembershipResponse:
+    """The client, signed in, accepts: their consent to the provider joining their team."""
+    client_id = care.client_for(me, body.token)
+    authorize(access, me, Action.ACCEPT_CARE_INVITATION, TeamTarget(client_id))
+    return MembershipResponse.of(care.accept(me, body.token))
+
+
 _STATUS_FOR = {
     InvalidReason: 422,
     SelfTreatment: 422,
@@ -143,10 +167,14 @@ _STATUS_FOR = {
     InvalidEngagement: 422,
     InvalidTiming: 422,
     InvalidCoverage: 422,
+    NotAClient: 422,
+    NotAProvider: 403,
+    InvitationNotForYou: 403,
     NotFound: 404,
     AlreadyOnTeam: 409,
     TeamAlreadyExists: 409,
     ConcurrentChange: 409,
+    InvitationUnusable: 410,
 }
 
 
@@ -156,4 +184,5 @@ def _care_team_error(request: Request, exc: Exception) -> JSONResponse:
 
 def install(app: FastAPI) -> None:
     app.include_router(router)
+    app.include_router(invitations)
     app.add_exception_handler(CareTeamError, _care_team_error)

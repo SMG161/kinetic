@@ -99,6 +99,11 @@ class TestManagingMembers:
         assert not manage(ADA, Action.DISCHARGE_ORGANIZATION, org=CLINIC).allowed
         assert not manage(TOM, Action.DISCHARGE_ORGANIZATION, org=GYM).allowed
 
+    def test_only_the_client_accepts_a_care_invitation(self):
+        assert manage(MAYA, Action.ACCEPT_CARE_INVITATION).allowed
+        for someone_else in (PIA, ADA, EVE):
+            assert not manage(someone_else, Action.ACCEPT_CARE_INVITATION).allowed
+
     def test_unknown_membership(self):
         decision = decide(ADA, Action.END_MEMBERSHIP, TeamTarget(TEAM.client_id, uuid4()), TEAM, LEADS, NOW)
         assert not decision.allowed and "no such membership" in decision.reason

@@ -82,19 +82,10 @@ class CareTeamService:
         engagement: Engagement,
         reason: str,
     ) -> Membership:
-        """The client's team is created with its first member."""
         at = self._clock.now()
         client = self._client(client_id, at)
         provider = self._provider(provider_email)
-        team = self._teams.get_by_client(client_id)
-        if team is None:
-            team = CareTeam.for_client(client)
-            membership = team.add_member(actor, provider, client, discipline, org_id, engagement, reason, at)
-            self._teams.add(team)
-        else:
-            membership = team.add_member(actor, provider, client, discipline, org_id, engagement, reason, at)
-            self._teams.save(team)
-        return membership
+        return add_to_team(self._teams, actor, provider, client, discipline, org_id, engagement, reason, at)
 
     def change_engagement(
         self, actor: PersonId, client_id: ClientId, membership_id: UUID, engagement: Engagement, reason: str
@@ -167,6 +158,29 @@ class CareTeamService:
         if provider is None:
             raise NotFound("no provider is registered with that email")
         return provider
+
+
+def add_to_team(
+    teams: CareTeamRepository,
+    actor: PersonId,
+    provider: ProviderFacts,
+    client: ClientFacts,
+    discipline: Discipline,
+    org_id: OrganizationId | None,
+    engagement: Engagement,
+    reason: str,
+    at: datetime,
+) -> Membership:
+    """Add a member; the client's team is created with its first member."""
+    team = teams.get_by_client(client.client_id)
+    if team is None:
+        team = CareTeam.for_client(client)
+        membership = team.add_member(actor, provider, client, discipline, org_id, engagement, reason, at)
+        teams.add(team)
+    else:
+        membership = team.add_member(actor, provider, client, discipline, org_id, engagement, reason, at)
+        teams.save(team)
+    return membership
 
 
 def _in(org: OrganizationId | None, scope: Scope) -> bool:

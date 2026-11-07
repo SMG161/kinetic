@@ -3,17 +3,18 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel
+from pydantic import AwareDatetime, BaseModel, Field
 
 from kinetic.care_team.application.services import TeamHistory, TeamSnapshot
 from kinetic.care_team.domain.facts import Discipline
+from kinetic.care_team.domain.invitations import CareInvitation
 from kinetic.care_team.domain.model import Coverage, Engagement, Membership, TeamEvent, TeamEventType
 
 
 class AddMemberRequest(BaseModel):
     provider_email: str
     discipline: Discipline
-    org_id: UUID | None = None  # None: a solo provider (refused until care invitations exist)
+    org_id: UUID | None = None  # None means solo, which is refused: solo providers join by care invitation
     engagement: Engagement = Engagement.ACTIVE
     reason: str
 
@@ -118,3 +119,29 @@ class HistoryResponse(BaseModel):
             coverages=[CoverageResponse.of(c) for c in h.coverages],
             events=[TeamEventResponse.of(e) for e in h.events],
         )
+
+
+class CareInvitationRequest(BaseModel):
+    client_email: str
+    discipline: Discipline
+    reason: str
+
+
+class CareInvitationResponse(BaseModel):
+    id: UUID
+    client_email: str
+    discipline: Discipline
+    expires_at: datetime
+    token: str = Field(description="Shown once. In production this would be emailed, not returned.")
+
+    @classmethod
+    def of(cls, invitation: CareInvitation, token: str) -> "CareInvitationResponse":
+        assert invitation.valid.end is not None
+        return cls(
+            id=invitation.id, client_email=invitation.client_email, discipline=invitation.discipline,
+            expires_at=invitation.valid.end, token=token,
+        )
+
+
+class AcceptCareInvitationRequest(BaseModel):
+    token: str

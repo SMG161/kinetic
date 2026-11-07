@@ -89,6 +89,11 @@ def _manage(
             return Decision.allow("a practice lead sees their own org's members", scope=led)
         return Decision.deny(OUTSIDER)
 
+    if action is Action.ACCEPT_CARE_INVITATION:
+        if is_client:
+            return Decision.allow("the client accepts, which is their consent")
+        return Decision.deny("only the client may accept a care invitation")
+
     if action is Action.DISCHARGE_ORGANIZATION:
         if target.org_id is None:
             return Decision.deny("name the organization to discharge")

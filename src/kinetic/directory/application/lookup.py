@@ -69,6 +69,10 @@ class DirectoryLookup:
             return None
         return ClientInfo(client.id, client.person_id, frozenset(self.practice_leads(client_id, at)))
 
+    def client_by_person(self, person_id: PersonId, at: datetime) -> ClientInfo | None:
+        client = self._clients.get_by_person(person_id)
+        return self.client(client.id, at) if client else None
+
     def practice_leads(self, client_id: ClientId, at: datetime) -> dict[OrganizationId, PersonId]:
         """Each org serving the client at that instant, and who leads them there."""
         leads = {}

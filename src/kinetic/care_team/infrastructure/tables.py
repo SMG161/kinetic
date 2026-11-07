@@ -62,3 +62,18 @@ class TeamEventRow(CareTeamBase):
     reason: Mapped[str]
     at: Mapped[datetime]
     subject_id: Mapped[UUID]
+
+
+class CareInvitationRow(CareTeamBase):
+    __tablename__ = "care_invitation"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    provider_id: Mapped[UUID]
+    client_email: Mapped[str]
+    discipline: Mapped[str]
+    reason: Mapped[str]
+    token_hash: Mapped[str] = mapped_column(unique=True)
+    created_at: Mapped[datetime]
+    expires_at: Mapped[datetime]
+    accepted_at: Mapped[datetime | None]
+    accepted_by: Mapped[UUID | None]
