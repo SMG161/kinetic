@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 
 from kinetic.access.application.service import AccessService
-from kinetic.access.domain.model import Action, Discipline, Engagement, RecordCategory, RecordTarget, TeamTarget
+from kinetic.access.domain.model import Action, Decision, Discipline, Engagement, RecordCategory, RecordTarget, TeamTarget
 from kinetic.access.domain.policy import decide
 from kinetic.access.domain.ports import CoverView, MemberView, TeamView
 from kinetic.shared_kernel import ClientId, FixedClock, OrganizationId, TimeRange, new_person_id
@@ -182,7 +182,7 @@ class TestEveryoneElse:
 
     def test_being_a_practice_lead_grants_no_records(self):
         decision = care(ADA, Action.VIEW_RECORD, RecordCategory.SESSION_NOTE)
-        assert not decision.allowed
+        assert decision == Decision.deny("records are for the client and the team's members")
 
     def test_a_former_member_is_told_when_their_access_ended(self):
         decision = care(OLD, Action.VIEW_RECORD, RecordCategory.ASSESSMENT)

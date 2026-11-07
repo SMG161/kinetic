@@ -183,4 +183,4 @@ def _why_not_on_team(principal: PersonId, team: TeamView, at: datetime) -> str:
         return f"coverage ended at {max(ended_covers).isoformat()}"
     if ended:
         return f"membership ended at {max(ended).isoformat()}"
-    return OUTSIDER
+    return "records are for the client and the team's members"
